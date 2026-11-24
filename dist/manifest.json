@@ -1,29 +1,19 @@
 {
   "name": "VencordForAndroid",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "minRequiredVersion": "0.0.2",
   "minInstallerVersion": "0.0.2",
   "corruptedVersions": [
     "0.0.1"
   ],
+  "targetApp": "com.discord",
   "repository": "juli22292/vencordforandroid",
   "installerRepository": "juli22292/vencordandroidapp",
-  "files": {
-    "browserJs": "https://github.com/juli22292/vencordforandroid/releases/download/0.0.6/browser.js",
-    "browserCss": "https://github.com/juli22292/vencordforandroid/releases/download/0.0.6/browser.css",
-    "mobileBridgeJs": "https://github.com/juli22292/vencordforandroid/releases/download/0.0.6/mobile_bridge.js"
-  },
-  "rawFiles": {
-    "browserJs": "https://raw.githubusercontent.com/juli22292/vencordforandroid/main/dist/browser.js",
-    "browserCss": "https://raw.githubusercontent.com/juli22292/vencordforandroid/main/dist/browser.css",
-    "mobileBridgeJs": "https://raw.githubusercontent.com/juli22292/vencordforandroid/main/dist/mobile_bridge.js"
-  },
-  "sha256": "897f97d96c5191dc39f364466db99730d48b686864ce41d48eb2d34214995241",
-  "hashes": {
-    "browserJs": "897f97d96c5191dc39f364466db99730d48b686864ce41d48eb2d34214995241",
-    "browserCss": "4325427fd8f112397d683e77d80a1ffce4fcc225d29c654a1bc9eac141f333c5",
-    "mobileBridgeJs": "dd6494aa252a7f0a98866ce9163aeb6886309d17eafd1789f1796d027c3b94be"
-  },
-  "builtAt": "2026-11-24T19:04:48.462Z",
-  "changelog": "v0.0.6: Offizielles kompiliertes Vencord (browser.js + browser.css) mit ALLEN offiziellen Vencord-Plugins voll funktionsfähig und speziell für Android-Handys angepasst."
+  "bundleFile": "vencordforandroid.js",
+  "bundleUrl": "https://github.com/juli22292/vencordforandroid/releases/download/0.0.7/vencordforandroid.js",
+  "rawBundleUrl": "https://raw.githubusercontent.com/juli22292/vencordforandroid/main/dist/vencordforandroid.js",
+  "sha256": "065196679c3cfa80c8c753a137074a5ab0bfcdf3711ea16c36d1dd813718a1ff",
+  "pluginCount": 170,
+  "builtAt": "2026-11-24T19:22:40.852Z",
+  "changelog": "v0.0.7: Echtes React-Native/Hermes-Bundle (direkter __r- & SETTING_RENDERER_CONFIG-Hook in die offizielle com.discord-App via LSPatch) mit 170 offiziellen Vencord-Plugins."
 }

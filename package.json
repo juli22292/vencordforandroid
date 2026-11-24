@@ -1,13 +1,13 @@
 {
   "name": "vencordforandroid",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "type": "module",
   "minInstallerVersion": "0.0.2",
   "corruptedVersions": [
     "0.0.1"
   ],
-  "description": "VencordForAndroid - Official Vencord with all official plugins adapted for Android",
-  "main": "dist/browser.js",
+  "description": "VencordForAndroid - Real React Native / Hermes mod & official Vencord plugins injected natively into com.discord",
+  "main": "dist/vencordforandroid.js",
   "repository": {
     "type": "git",
     "url": "https://github.com/juli22292/vencordforandroid.git"

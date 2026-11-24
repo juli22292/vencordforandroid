@@ -144,16 +144,19 @@ class PatcherAndModuleEngine {
         try {
             // 1. React Native Metro modules map (Discord Android com.discord)
             if (typeof globalThis !== "undefined" && globalThis.modules) {
-                for (const key of Object.keys(globalThis.modules)) {
-                    const mod = globalThis.modules[key];
-                    if (mod?.publicModule?.exports) {
+                const modulesMap = globalThis.modules instanceof Map
+                    ? Object.fromEntries(globalThis.modules)
+                    : globalThis.modules;
+                for (const key of Object.keys(modulesMap)) {
+                    const mod = modulesMap[key];
+                    if (mod?.isInitialized && mod?.publicModule?.exports) {
                         list.push(mod.publicModule.exports);
                     } else if (mod?.exports) {
                         list.push(mod.exports);
                     }
                 }
             }
-            // 2. Webpack chunk cache (Discord Web / Desktop / Vendroid)
+            // 2. Webpack chunk cache fallback
             if (typeof window !== "undefined" && Array.isArray(window.webpackChunkdiscord_app)) {
                 let wpRequire = this._wpRequire;
                 if (!wpRequire) {
@@ -175,6 +178,42 @@ class PatcherAndModuleEngine {
             }
         } catch (_) {}
         return list;
+    }
+
+    /**
+     * Safely initializes and searches uninitialized Metro modules inside com.discord
+     * (exact ErrorUtils-guarded technique from revenge-bundle/src/metro/internals/modules.ts)
+     */
+    findDeepInMetro(filterFn) {
+        const quick = this.find(filterFn);
+        if (quick) return quick;
+        if (typeof globalThis === "undefined" || !globalThis.modules || typeof globalThis.__r !== "function") {
+            return null;
+        }
+        const modulesMap = globalThis.modules instanceof Map
+            ? Object.fromEntries(globalThis.modules)
+            : globalThis.modules;
+        const origErrHandler = globalThis.ErrorUtils?.getGlobalHandler?.();
+        try {
+            if (globalThis.ErrorUtils?.setGlobalHandler) {
+                globalThis.ErrorUtils.setGlobalHandler(() => {});
+            }
+            for (const key of Object.keys(modulesMap)) {
+                const mod = modulesMap[key];
+                if (!mod || mod.hasError) continue;
+                try {
+                    const exp = mod.isInitialized ? mod.publicModule?.exports : globalThis.__r(Number(key));
+                    if (!exp) continue;
+                    if (filterFn(exp)) return exp;
+                    if (exp.default && filterFn(exp.default)) return exp.default;
+                } catch (_) {}
+            }
+        } finally {
+            if (origErrHandler && globalThis.ErrorUtils?.setGlobalHandler) {
+                globalThis.ErrorUtils.setGlobalHandler(origErrHandler);
+            }
+        }
+        return null;
     }
 
     find(filterFn) {
@@ -236,12 +275,29 @@ class PatcherAndModuleEngine {
                 ? (m) => m && (filterOrProps in m || m.displayName === filterOrProps || m.name === filterOrProps)
                 : filterOrProps;
 
-        const existing = this.find(filter);
+        const existing = this.find(filter) || this.findDeepInMetro(filter);
         if (existing) {
             callback(existing);
             return;
         }
-        this.waitSubscriptions.add({ filter, callback });
+        const sub = { filter, callback };
+        this.waitSubscriptions.add(sub);
+
+        // Periodic fallback check in case Metro loads the module lazily after startup
+        let attempts = 0;
+        const timer = setInterval(() => {
+            attempts++;
+            if (!this.waitSubscriptions.has(sub) || attempts > 40) {
+                clearInterval(timer);
+                return;
+            }
+            const found = this.find(filter);
+            if (found) {
+                this.waitSubscriptions.delete(sub);
+                clearInterval(timer);
+                callback(found);
+            }
+        }, 500);
     }
 
     get Common() {
