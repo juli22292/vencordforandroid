@@ -20,8 +20,8 @@
   "bundleFile": "vencordforandroid.js",
   "bundleUrl": "https://github.com/juli22292/vencordforandroid/releases/download/0.0.4/vencordforandroid.js",
   "rawBundleUrl": "https://raw.githubusercontent.com/juli22292/vencordforandroid/main/dist/vencordforandroid.js",
-  "sha256": "c710d523eef5972b326f4d7643388957fe5c356d8b7919e6fd39ae2d4a5d881c",
-  "builtAt": "2026-11-24T18:48:59.521Z",
+  "sha256": "7ae084f2ac6dfd890e13ec55c96666b24c14f6d8ddbb196159c69df0b6dabc72",
+  "builtAt": "2026-11-24T18:49:27.933Z",
   "pluginCount": 170,
   "changelog": "v0.0.4: Offizielle Vencord Settings-Oberfläche (Vencord, Plugins, Themes, Updater, Cloud, Backup & Restore) in den Discord-Einstellungen sowie 170 offizielle Vencord-Plugins für Android.",
   "plugins": [

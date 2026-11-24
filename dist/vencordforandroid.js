@@ -4,7 +4,7 @@
  * Official Vencord Plugins adapted for Android (170 plugins)
  * Target: Official Discord Android App (com.discord / com.discord.ptb / com.discord.canary)
  * Corrupted/Blocked Versions: 0.0.1
- * Built: 2026-11-24T18:48:59.515Z
+ * Built: 2026-11-24T18:49:27.929Z
  */
 (function (global) {
 "use strict";
@@ -532,9 +532,6 @@ const Metro = Patcher;
  * VencordForAndroid v0.0.4 - PluginManager & Internal Plugin APIs
  * Follows Vendicated/Vencord/src/api/PluginManager.ts (Flux events, MessageEventsAPI, CommandsAPI, Patches, Settings).
  */
-
-
-export { definePluginSettings, OptionType };
 function definePlugin(definition) {
     const options = definition.options || (definition.settings?.def) || {};
     return {

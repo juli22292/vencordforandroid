@@ -29,6 +29,7 @@ const moduleOrder = [
 function stripImportsExports(code) {
     return code
         .replace(/^\s*import\s+[\s\S]*?from\s+["'][^"']+["'];?\s*$/gm, "")
+        .replace(/^\s*export\s*\{[^}]*\};?\s*$/gm, "")
         .replace(/^\s*export\s+default\s+.*$/gm, "")
         .replace(/^\s*export\s+(const|let|var|class|function)\s+/gm, "$1 ");
 }
