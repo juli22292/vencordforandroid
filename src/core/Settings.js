@@ -1,17 +1,24 @@
 /**
- * VencordForAndroid - Persistent Settings Store
- * Manages core configuration and per-plugin state inside Discord Mobile.
+ * VencordForAndroid - Persistent Settings Store (v0.0.3)
+ * Manages core configuration, QuickCSS, themes, UI element visibility, and per-plugin state.
  */
 
 const STORAGE_KEY = "VencordForAndroid_Settings_v1";
 
 const DEFAULT_SETTINGS = {
-    version: "0.0.2",
+    version: "0.0.3",
     installedAt: null,
     autoUpdateCheck: true,
     notifyOnUpdates: true,
     safeMode: false,
     developerMode: false,
+    useQuickCss: true,
+    quickCss: "",
+    themeLinks: [],
+    uiElements: {
+        chatBarButtons: true,
+        messagePopoverButtons: true
+    },
     repoOwner: "juli22292",
     repoName: "vencordforandroid",
     repoUrl: "https://github.com/juli22292/vencordforandroid",
@@ -67,6 +74,7 @@ class SettingsManager {
             return {
                 ...DEFAULT_SETTINGS,
                 ...parsed,
+                version: "0.0.3",
                 plugins: { ...(parsed.plugins || {}) }
             };
         } catch (err) {
@@ -108,6 +116,11 @@ class SettingsManager {
         const cfg = this.getPluginConfig(pluginName);
         cfg.enabled = Boolean(enabled);
         this.save();
+        if (typeof globalThis !== "undefined" && globalThis.__VENCORD_ANDROID_BRIDGE__?.setPluginEnabledNative) {
+            try {
+                globalThis.__VENCORD_ANDROID_BRIDGE__.setPluginEnabledNative(pluginName, Boolean(enabled));
+            } catch (_) {}
+        }
     }
 
     setPluginOption(pluginName, optionKey, value) {

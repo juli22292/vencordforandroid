@@ -1,20 +1,20 @@
 /**
- * Build script for VencordForAndroid v0.0.2
+ * Build script for VencordForAndroid v0.0.3
  * Produces dist/vencordforandroid.js and dist/manifest.json
- * Marks v0.0.1 as corrupted and requires v0.0.2+.
  */
 
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { BUILTIN_PLUGINS } from "../src/plugins/builtinPlugins.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
 const distDir = path.join(rootDir, "dist");
 
 const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, "package.json"), "utf8"));
-const version = pkg.version || "0.0.2";
+const version = pkg.version || "0.0.3";
 
 const moduleOrder = [
     "src/core/Settings.js",
@@ -43,6 +43,7 @@ for (const relPath of moduleOrder) {
 const banner = `/**
  * VencordForAndroid v${version}
  * Repository: https://github.com/juli22292/vencordforandroid
+ * Official Vencord Plugins adapted for Android (${BUILTIN_PLUGINS.length} plugins)
  * Target: Official Discord Android App (com.discord / com.discord.ptb / com.discord.canary)
  * Corrupted/Blocked Versions: 0.0.1
  * Built: ${new Date().toISOString()}
@@ -70,7 +71,7 @@ const manifest = {
     minInstallerVersion: "0.0.2",
     corruptedVersions: ["0.0.1"],
     forceUpdateFrom: ["0.0.1"],
-    corruptedMessage: "Version 0.0.1 ist beschädigt und unbenutzbar! Bitte sofort auf Version 0.0.2 aktualisieren.",
+    corruptedMessage: "Version 0.0.1 ist beschädigt und unbenutzbar! Bitte sofort auf Version 0.0.3 aktualisieren.",
     targetApp: "com.discord",
     repository: "juli22292/vencordforandroid",
     installerRepository: "juli22292/vencordandroidapp",
@@ -79,20 +80,18 @@ const manifest = {
     rawBundleUrl: "https://raw.githubusercontent.com/juli22292/vencordforandroid/main/dist/vencordforandroid.js",
     sha256,
     builtAt: new Date().toISOString(),
-    changelog: "v0.0.2: Direkte Injektion in die bereits installierte offizielle Discord-App (com.discord) ohne WebView-Neuanmeldung. Version 0.0.1 wurde als beschädigt gesperrt.",
-    plugins: [
-        { name: "AlwaysAnimate", version, enabledByDefault: true, description: "Animiert Server-Icons, Avatare, Banner und Nitro-Emojis dauerhaft ohne Antippen." },
-        { name: "ClearURLs", version, enabledByDefault: true, description: "Entfernt automatisch Tracking-Parameter (utm_*, fbclid, si, igshid) beim Senden von Links." },
-        { name: "FakeNitro", version, enabledByDefault: true, description: "Ermöglicht das Senden von animierten & externen Custom-Emojis sowie Stickern ohne Nitro als eingebettete Links." },
-        { name: "MessageLogger", version, enabledByDefault: true, description: "Speichert gelöschte und bearbeitete Nachrichten lokal im Chat und markiert sie farblich." },
-        { name: "NoReplyMention", version, enabledByDefault: true, description: "Deaktiviert standardmäßig den @Ping beim Antworten auf Nachrichten." },
-        { name: "SilentTyping", version, enabledByDefault: false, description: "Verbirgt deinen 'Schreibt gerade...'-Indikator für andere Nutzer im Chat." },
-        { name: "ShowHiddenChannels", version, enabledByDefault: false, description: "Zeigt versteckte Kanäle auf Servern inklusive Kanal-Thema und Berechtigungsübersicht an." },
-        { name: "ReadAllNotificationsButton", version, enabledByDefault: true, description: "Fügt einen Button hinzu, um alle ungelesenen Server und Kanäle mit einem Tipp als gelesen zu markieren." },
-        { name: "Translate", version, enabledByDefault: true, description: "Übersetzt fremdsprachige Nachrichten direkt im Nachrichtenmenü auf Deutsch." },
-        { name: "BetterTimestamps", version, enabledByDefault: false, description: "Zeigt genaue Uhrzeiten (inkl. Sekunden) und vollständige Datumsangaben bei Nachrichten an." }
-    ]
+    pluginCount: BUILTIN_PLUGINS.length,
+    changelog: `v${version}: Offizielle Vencord Settings-Oberfläche (Vencord, Plugins, Themes, Updater, Cloud, Backup & Restore) in den Discord-Einstellungen sowie ${BUILTIN_PLUGINS.length} offizielle Vencord-Plugins für Android.`,
+    plugins: BUILTIN_PLUGINS.map((p) => ({
+        name: p.name,
+        version,
+        description: p.description,
+        tags: p.tags,
+        hasSettings: p.hasSettings,
+        required: p.required,
+        enabledByDefault: p.enabledByDefault
+    }))
 };
 
 fs.writeFileSync(path.join(distDir, "manifest.json"), JSON.stringify(manifest, null, 2), "utf8");
-console.log(`[Build] Built dist/vencordforandroid.js v${version} (${bundleContent.length} bytes, sha256=${sha256.slice(0, 12)}...)`);
+console.log(`[Build] Built dist/vencordforandroid.js v${version} (${bundleContent.length} bytes, ${BUILTIN_PLUGINS.length} plugins, sha256=${sha256.slice(0, 12)}...)`);

@@ -1,20 +1,23 @@
 /**
- * VencordForAndroid - Plugin Manager
- * Handles registration, enabling/disabling, configuration, and lifecycle of all plugins.
+ * VencordForAndroid - Plugin Manager (v0.0.3)
+ * Handles registration, tags, options (cog wheel vs info icon), and lifecycle of official Vencord plugins on Android.
  */
 
 import { Settings } from "./Settings.js";
 import { Patcher } from "./Patcher.js";
 
 export function definePlugin(definition) {
+    const options = definition.options || {};
     return {
         name: definition.name,
         description: definition.description || "",
-        authors: definition.authors || [{ name: "juli22292" }],
-        version: definition.version || "0.0.1",
+        authors: definition.authors || [{ name: "Vendicated" }, { name: "juli22292" }],
+        tags: definition.tags || ["Utility"],
+        version: definition.version || "0.0.3",
         required: Boolean(definition.required),
-        enabledByDefault: Boolean(definition.enabledByDefault),
-        options: definition.options || {},
+        enabledByDefault: Boolean(definition.enabledByDefault || definition.required),
+        hasSettings: Object.keys(options).length > 0,
+        options,
         patches: definition.patches || [],
         start: definition.start || (() => {}),
         stop: definition.stop || (() => {})
@@ -47,7 +50,8 @@ class PluginManagerService {
     }
 
     registerAll(pluginList) {
-        for (const plugin of pluginList) {
+        const sorted = [...pluginList].sort((a, b) => a.name.localeCompare(b.name));
+        for (const plugin of sorted) {
             this.register(plugin);
         }
     }
@@ -102,7 +106,6 @@ class PluginManagerService {
             plugin.start(context);
             this.running.add(name);
             Settings.setPluginEnabled(name, true);
-            console.log(`[VencordForAndroid] Started plugin: ${name}`);
             return true;
         } catch (err) {
             console.error(`[VencordForAndroid] Error starting plugin "${name}":`, err);
@@ -121,7 +124,6 @@ class PluginManagerService {
                 this.running.delete(name);
             }
             Settings.setPluginEnabled(name, false);
-            console.log(`[VencordForAndroid] Stopped plugin: ${name}`);
             return true;
         } catch (err) {
             console.error(`[VencordForAndroid] Error stopping plugin "${name}":`, err);
@@ -142,9 +144,7 @@ class PluginManagerService {
             if (plugin) {
                 try {
                     plugin.stop({ patcher: Patcher });
-                } catch (err) {
-                    console.error(`[VencordForAndroid] Error stopping ${name}:`, err);
-                }
+                } catch (_) {}
             }
             Patcher.unpatchAll(name);
             this.running.delete(name);

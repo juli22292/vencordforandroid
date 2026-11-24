@@ -1,6 +1,6 @@
 {
   "name": "VencordForAndroid",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "minRequiredVersion": "0.0.2",
   "minInstallerVersion": "0.0.2",
   "corruptedVersions": [
@@ -9,76 +9,2013 @@
   "forceUpdateFrom": [
     "0.0.1"
   ],
-  "corruptedMessage": "Version 0.0.1 ist beschädigt und unbenutzbar! Bitte sofort auf Version 0.0.2 aktualisieren.",
+  "corruptedMessage": "Version 0.0.1 ist beschädigt und unbenutzbar! Bitte sofort auf Version 0.0.3 aktualisieren.",
   "targetApp": "com.discord",
   "repository": "juli22292/vencordforandroid",
   "installerRepository": "juli22292/vencordandroidapp",
   "bundleFile": "vencordforandroid.js",
-  "bundleUrl": "https://github.com/juli22292/vencordforandroid/releases/download/0.0.2/vencordforandroid.js",
+  "bundleUrl": "https://github.com/juli22292/vencordforandroid/releases/download/0.0.3/vencordforandroid.js",
   "rawBundleUrl": "https://raw.githubusercontent.com/juli22292/vencordforandroid/main/dist/vencordforandroid.js",
-  "sha256": "994c2933b460c2cc3499d2cd44d939c3aafd0b25ecad5572da17eb98d0f9a57b",
-  "builtAt": "2026-11-24T18:11:24.333Z",
-  "changelog": "v0.0.2: Direkte Injektion in die bereits installierte offizielle Discord-App (com.discord) ohne WebView-Neuanmeldung. Version 0.0.1 wurde als beschädigt gesperrt.",
+  "sha256": "df74e20af0993f6cdf392275727887ab5c421a2abcc59c3a13cf22fab7604ad8",
+  "builtAt": "2026-11-24T18:29:52.208Z",
+  "pluginCount": 170,
+  "changelog": "v0.0.3: Offizielle Vencord Settings-Oberfläche (Vencord, Plugins, Themes, Updater, Cloud, Backup & Restore) in den Discord-Einstellungen sowie 170 offizielle Vencord-Plugins für Android.",
   "plugins": [
     {
+      "name": "AccountPanelServerProfile",
+      "version": "0.0.3",
+      "description": "Right click your account panel in the bottom left to view your profile in the current server",
+      "tags": [
+        "Appearance",
+        "Guilds"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "AddAttachments",
+      "version": "0.0.3",
+      "description": "Allows you to add new attachments while editing messages",
+      "tags": [
+        "Chat",
+        "Messages"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
       "name": "AlwaysAnimate",
-      "version": "0.0.2",
-      "enabledByDefault": true,
-      "description": "Animiert Server-Icons, Avatare, Banner und Nitro-Emojis dauerhaft ohne Antippen."
+      "version": "0.0.3",
+      "description": "Animates anything that can be animated",
+      "tags": [
+        "Appearance",
+        "Media"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "AlwaysExpandRoles",
+      "version": "0.0.3",
+      "description": "Always expands the role list in profile popouts",
+      "tags": [
+        "Appearance",
+        "Guilds"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "AlwaysTrust",
+      "version": "0.0.3",
+      "description": "Removes the annoying untrusted domain and suspicious file popup",
+      "tags": [
+        "Utility",
+        "Chat"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "AnonymiseFileNames",
+      "version": "0.0.3",
+      "description": "Anonymise uploaded file names",
+      "tags": [
+        "Privacy",
+        "Media"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "AppleMusicRichPresence",
+      "version": "0.0.3",
+      "description": "Discord rich presence for your Apple Music status on Android",
+      "tags": [
+        "Media",
+        "Utility"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "AutomodContext",
+      "version": "0.0.3",
+      "description": "Allows you to jump to the message surrounding an Automod hit",
+      "tags": [
+        "Guilds",
+        "Messages"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "BetterFolders",
+      "version": "0.0.3",
+      "description": "Shows server folders on dedicated sidebar and allows auto-closing folders",
+      "tags": [
+        "Appearance",
+        "Guilds"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "BetterGifAltText",
+      "version": "0.0.3",
+      "description": "Change GIF alt text from simply being 'GIF' to containing the GIF's tags/title",
+      "tags": [
+        "Media",
+        "Appearance"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "BetterGifPicker",
+      "version": "0.0.3",
+      "description": "Makes the gif picker open the favorite category by default",
+      "tags": [
+        "Media",
+        "Chat"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "BetterNotesBox",
+      "version": "0.0.3",
+      "description": "Hide notes or disable spellcheck in user profile notes",
+      "tags": [
+        "Appearance",
+        "Utility"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "BetterRoleContext",
+      "version": "0.0.3",
+      "description": "Adds options to copy role color / ID / icon when tapping a role in profile popouts",
+      "tags": [
+        "Guilds",
+        "Utility"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "BetterRoleDot",
+      "version": "0.0.3",
+      "description": "Copy role colour on RoleDot click and use both RoleDot and coloured names simultaneously",
+      "tags": [
+        "Appearance",
+        "Guilds"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "BetterSessions",
+      "version": "0.0.3",
+      "description": "Enhances the active sessions (Devices) page with custom device names and notifications",
+      "tags": [
+        "Privacy",
+        "Notifications"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "BetterSettings",
+      "version": "0.0.3",
+      "description": "Enhances your settings menu opening speed and navigation experience",
+      "tags": [
+        "Appearance",
+        "Shortcuts"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "BetterUploadButton",
+      "version": "0.0.3",
+      "description": "Upload with a single tap instead of opening the attachment menu",
+      "tags": [
+        "Chat",
+        "Shortcuts"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "BiggerStreamPreview",
+      "version": "0.0.3",
+      "description": "This plugin allows you to enlarge stream previews in voice channels",
+      "tags": [
+        "Voice",
+        "Media"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "BlurNSFW",
+      "version": "0.0.3",
+      "description": "Blur attachments in NSFW channels until you tap them",
+      "tags": [
+        "Privacy",
+        "Media"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "CallTimer",
+      "version": "0.0.3",
+      "description": "Adds a live duration timer to any voice call or voice channel",
+      "tags": [
+        "Voice",
+        "Utility"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
     },
     {
       "name": "ClearURLs",
-      "version": "0.0.2",
-      "enabledByDefault": true,
-      "description": "Entfernt automatisch Tracking-Parameter (utm_*, fbclid, si, igshid) beim Senden von Links."
+      "version": "0.0.3",
+      "description": "Removes tracking garbage (utm_*, fbclid, si, igshid) from URLs before sending",
+      "tags": [
+        "Privacy",
+        "Chat"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "ClientTheme",
+      "version": "0.0.3",
+      "description": "Recreation of the old Discord client theme experiment with custom hex color picker",
+      "tags": [
+        "Appearance"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "ColorSighted",
+      "version": "0.0.3",
+      "description": "Removes the colorblind-friendly icons from status indicators, leaving pure round status dots",
+      "tags": [
+        "Appearance"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "ConsoleJanitor",
+      "version": "0.0.3",
+      "description": "Disables annoying console logs and warnings from Discord internals",
+      "tags": [
+        "Utility"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "ConsoleShortcuts",
+      "version": "0.0.3",
+      "description": "Adds shorter aliases for common debugging functions on the global window object",
+      "tags": [
+        "Utility"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "CopyEmojiMarkdown",
+      "version": "0.0.3",
+      "description": "Allows you to copy the raw markdown (<:name:id>) of an emoji from its popout",
+      "tags": [
+        "Chat",
+        "Utility"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "CopyFileContents",
+      "version": "0.0.3",
+      "description": "Adds a button to text file attachments to copy their contents to clipboard",
+      "tags": [
+        "Chat",
+        "Utility"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "CopyUserURLs",
+      "version": "0.0.3",
+      "description": "Adds a 'Copy User URL' (<https://discord.com/users/id>) entry to user profiles",
+      "tags": [
+        "Friends",
+        "Utility"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "CrashHandler",
+      "version": "0.0.3",
+      "description": "Utility plugin for handling and recovering from Discord UI crashes without restarting",
+      "tags": [
+        "Utility"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "CtrlEnterSend",
+      "version": "0.0.3",
+      "description": "Customize how the Enter / Send key behaves when typing messages",
+      "tags": [
+        "Chat",
+        "Shortcuts"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "CustomIdle",
+      "version": "0.0.3",
+      "description": "Allows you to set a custom idle timeout or disable auto-idle completely",
+      "tags": [
+        "Utility",
+        "Privacy"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "CustomRPC",
+      "version": "0.0.3",
+      "description": "Add a fully customisable Rich Presence (Game / Stream / Listening status) to your Discord profile",
+      "tags": [
+        "Appearance",
+        "Utility"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "Dearrow",
+      "version": "0.0.3",
+      "description": "Makes YouTube video titles and thumbnails less clickbaity using CrowdSourced DeArrow data",
+      "tags": [
+        "Media",
+        "Appearance"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "Decor",
+      "version": "0.0.3",
+      "description": "Create and use custom avatar decorations for free with other Vencord users",
+      "tags": [
+        "Appearance"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "DisableCallIdle",
+      "version": "0.0.3",
+      "description": "Disables automatically getting kicked from a DM voice call after 3 minutes alone",
+      "tags": [
+        "Voice"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "DontRoundMyTimestamps",
+      "version": "0.0.3",
+      "description": "Prevents Discord from rounding relative timestamps up to the next unit",
+      "tags": [
+        "Messages",
+        "Appearance"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "Experiments",
+      "version": "0.0.3",
+      "description": "Enable Access to Experiments & other dev-only features in Discord!",
+      "tags": [
+        "Utility"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
     },
     {
       "name": "FakeNitro",
-      "version": "0.0.2",
-      "enabledByDefault": true,
-      "description": "Ermöglicht das Senden von animierten & externen Custom-Emojis sowie Stickern ohne Nitro als eingebettete Links."
+      "version": "0.0.3",
+      "description": "Allows you to stream in nitro quality, send fake emojis/stickers, use client themes and custom icons",
+      "tags": [
+        "Chat",
+        "Media",
+        "Voice"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "FakeProfileThemes",
+      "version": "0.0.3",
+      "description": "Allows profile theming by hiding the colors as invisible 3y3 encoding in your bio",
+      "tags": [
+        "Appearance"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "FavoriteEmojiFirst",
+      "version": "0.0.3",
+      "description": "Puts your favorite emojis first in the emoji autocomplete list",
+      "tags": [
+        "Chat",
+        "Shortcuts"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "FavoriteGifSearch",
+      "version": "0.0.3",
+      "description": "Adds a search bar to your favorite gifs menu",
+      "tags": [
+        "Media",
+        "Chat"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "FixCodeblockGap",
+      "version": "0.0.3",
+      "description": "Removes the awkward empty gap below codeblocks in messages",
+      "tags": [
+        "Appearance",
+        "Messages"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "FixImagesQuality",
+      "version": "0.0.3",
+      "description": "Improves quality of images in chat by forcing original WebP/PNG resolution",
+      "tags": [
+        "Media",
+        "Appearance"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "FixSpotifyEmbeds",
+      "version": "0.0.3",
+      "description": "Fixes spotify embeds being way too loud by letting you configure their default volume",
+      "tags": [
+        "Media"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "FixYoutubeEmbeds",
+      "version": "0.0.3",
+      "description": "Bypasses youtube videos being blocked from playing inside Discord embeds",
+      "tags": [
+        "Media"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "ForceOwnerCrown",
+      "version": "0.0.3",
+      "description": "Force the owner crown next to usernames even if the server is very large",
+      "tags": [
+        "Appearance",
+        "Guilds"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "FriendInvites",
+      "version": "0.0.3",
+      "description": "Create and manage friend invite links via slash commands (/create friend invite)",
+      "tags": [
+        "Friends",
+        "Utility"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "FriendsSince",
+      "version": "0.0.3",
+      "description": "Displays when you became friends with someone in their user profile popout",
+      "tags": [
+        "Friends",
+        "Appearance"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "FullSearchContext",
+      "version": "0.0.3",
+      "description": "Makes the message context menu in search results have all standard options",
+      "tags": [
+        "Messages",
+        "Utility"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "GameActivityToggle",
+      "version": "0.0.3",
+      "description": "Adds a button next to the mic and deafen button to toggle game activity visibility",
+      "tags": [
+        "Appearance",
+        "Privacy"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "GifPaste",
+      "version": "0.0.3",
+      "description": "Makes picking a GIF in the gif picker insert a link into the chatbox instead of instantly sending it",
+      "tags": [
+        "Chat",
+        "Media"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "GreetStickerPicker",
+      "version": "0.0.3",
+      "description": "Allows you to use any welcome sticker instead of only the random default sticker",
+      "tags": [
+        "Chat"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "HideAttachments",
+      "version": "0.0.3",
+      "description": "Allow hiding attachments and embeds for individual messages via a toggle button",
+      "tags": [
+        "Media",
+        "Messages"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "IgnoreActivities",
+      "version": "0.0.3",
+      "description": "Ignore specific activities from showing up on your status or others' profiles",
+      "tags": [
+        "Privacy",
+        "Appearance"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "iLoveSpam",
+      "version": "0.0.3",
+      "description": "Do not collapse messages from 'likely spammers' automatically",
+      "tags": [
+        "Chat",
+        "Messages"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "ImageFilename",
+      "version": "0.0.3",
+      "description": "Display the file name of images & videos as a tooltip / overlay",
+      "tags": [
+        "Media",
+        "Appearance"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "ImageZoom",
+      "version": "0.0.3",
+      "description": "Lets you zoom in to images and gifs inside Discord with a magnifier lens",
+      "tags": [
+        "Media"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "ImplicitRelationships",
+      "version": "0.0.3",
+      "description": "Shows your implicit relationships (Discord affinity score) in the Friends tab",
+      "tags": [
+        "Friends"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "InvisibleChat",
+      "version": "0.0.3",
+      "description": "Encrypt your messages in invisible zero-width characters so only Vencord users can read them",
+      "tags": [
+        "Privacy",
+        "Chat"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "KeepCurrentChannel",
+      "version": "0.0.3",
+      "description": "Attempt to navigate back to the exact channel you had open before restarting Discord",
+      "tags": [
+        "Utility",
+        "Shortcuts"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "LastFMRichPresence",
+      "version": "0.0.3",
+      "description": "Little plugin for Last.fm rich presence status",
+      "tags": [
+        "Media",
+        "Appearance"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "LoadingQuotes",
+      "version": "0.0.3",
+      "description": "Replace Discord's loading quotes with custom Vencord quotes",
+      "tags": [
+        "Appearance"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "MemberCount",
+      "version": "0.0.3",
+      "description": "Shows the amount of online and total members in the server member list and tooltip",
+      "tags": [
+        "Guilds",
+        "Appearance"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "MentionAvatars",
+      "version": "0.0.3",
+      "description": "Shows user avatars inside @mentions in chat",
+      "tags": [
+        "Appearance",
+        "Messages"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "MessageClickActions",
+      "version": "0.0.3",
+      "description": "Double-tap a message to quick-reply or edit your own message",
+      "tags": [
+        "Chat",
+        "Shortcuts"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "MessageLatency",
+      "version": "0.0.3",
+      "description": "Displays an indicator for messages that took >= N seconds to arrive",
+      "tags": [
+        "Messages",
+        "Utility"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "MessageLinkEmbeds",
+      "version": "0.0.3",
+      "description": "Previews the contents of linked Discord messages directly in chat",
+      "tags": [
+        "Messages",
+        "Chat"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
     },
     {
       "name": "MessageLogger",
-      "version": "0.0.2",
-      "enabledByDefault": true,
-      "description": "Speichert gelöschte und bearbeitete Nachrichten lokal im Chat und markiert sie farblich."
+      "version": "0.0.3",
+      "description": "Temporarily logs deleted and edited messages in chat",
+      "tags": [
+        "Messages",
+        "Chat",
+        "Utility"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "MessageTags",
+      "version": "0.0.3",
+      "description": "Allows you to save custom snippets and to send them with a simple slash command",
+      "tags": [
+        "Chat",
+        "Shortcuts"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "MoreCommands",
+      "version": "0.0.3",
+      "description": "Adds various fun and useful slash commands (/echo, /lenny, /mock, /shrug)",
+      "tags": [
+        "Chat"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "MoreKaomoji",
+      "version": "0.0.3",
+      "description": "Adds more Kaomoji to Discord's built-in slash commands",
+      "tags": [
+        "Chat"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "MoreUserTags",
+      "version": "0.0.3",
+      "description": "Adds tags for webhooks and moderation roles (Owner, Admin, Mod, Staff, Voice) in chat",
+      "tags": [
+        "Appearance",
+        "Guilds"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "Moyai",
+      "version": "0.0.3",
+      "description": "🗿 Vine boom sound effect whenever someone sends or reacts with 🗿",
+      "tags": [
+        "Chat",
+        "Media"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "MutualGroupDMs",
+      "version": "0.0.3",
+      "description": "Shows mutual group DMs in user profiles next to Mutual Servers and Mutual Friends",
+      "tags": [
+        "Friends",
+        "Appearance"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "NewGuildSettings",
+      "version": "0.0.3",
+      "description": "Automatically mute new servers or apply default notification preferences upon joining",
+      "tags": [
+        "Guilds",
+        "Notifications"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "NoBlockedMessages",
+      "version": "0.0.3",
+      "description": "Hides all blocked messages from chat completely",
+      "tags": [
+        "Chat",
+        "Appearance"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "NoDevtoolsWarning",
+      "version": "0.0.3",
+      "description": "Disables the 'Hold Up!' console warning and prevents Self-XSS token logging",
+      "tags": [
+        "Utility",
+        "Privacy"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "NoF1",
+      "version": "0.0.3",
+      "description": "Disables F1 help bind inside Discord",
+      "tags": [
+        "Shortcuts"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "NoMaskedUrlPaste",
+      "version": "0.0.3",
+      "description": "Pasting a link while having text selected will not paste as a masked URL",
+      "tags": [
+        "Chat"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "NoMosaic",
+      "version": "0.0.3",
+      "description": "Removes Discord image mosaic layout so multiple images stack cleanly",
+      "tags": [
+        "Media",
+        "Appearance"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "NoOnboardingDelay",
+      "version": "0.0.3",
+      "description": "Skips the slow onboarding delay when joining a community server",
+      "tags": [
+        "Guilds"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "NoPendingCount",
+      "version": "0.0.3",
+      "description": "Removes the ping count of incoming friend requests, message requests, and nitro offers",
+      "tags": [
+        "Notifications",
+        "Appearance"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "NoProfileThemes",
+      "version": "0.0.3",
+      "description": "Completely removes Nitro profile themes from everyone's profile popouts",
+      "tags": [
+        "Appearance"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
     },
     {
       "name": "NoReplyMention",
-      "version": "0.0.2",
-      "enabledByDefault": true,
-      "description": "Deaktiviert standardmäßig den @Ping beim Antworten auf Nachrichten."
+      "version": "0.0.3",
+      "description": "Automatically sets replies to not ping the target user by default",
+      "tags": [
+        "Chat",
+        "Notifications"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
     },
     {
-      "name": "SilentTyping",
-      "version": "0.0.2",
-      "enabledByDefault": false,
-      "description": "Verbirgt deinen 'Schreibt gerade...'-Indikator für andere Nutzer im Chat."
+      "name": "NoRPC",
+      "version": "0.0.3",
+      "description": "Disables Discord's local RPC server entirely",
+      "tags": [
+        "Privacy"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
     },
     {
-      "name": "ShowHiddenChannels",
-      "version": "0.0.2",
-      "enabledByDefault": false,
-      "description": "Zeigt versteckte Kanäle auf Servern inklusive Kanal-Thema und Berechtigungsübersicht an."
+      "name": "NoScreensharePreview",
+      "version": "0.0.3",
+      "description": "Disables screenshare previews from being sent to reduce mobile data & battery usage",
+      "tags": [
+        "Voice",
+        "Privacy"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "NoServerEmojis",
+      "version": "0.0.3",
+      "description": "Do not show other servers' emojis in the emoji autocomplete menu",
+      "tags": [
+        "Chat"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "NoSystemBadge",
+      "version": "0.0.3",
+      "description": "Disables the unread badge count on the system launcher icon",
+      "tags": [
+        "Notifications"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "NoTrack",
+      "version": "0.0.3",
+      "description": "Disable Discord's tracking ('science'/analytics) and crash reporting",
+      "tags": [
+        "Privacy"
+      ],
+      "hasSettings": true,
+      "required": true,
+      "enabledByDefault": true
+    },
+    {
+      "name": "NoTypingAnimation",
+      "version": "0.0.3",
+      "description": "Disables the CPU-intensive typing dots animation in the bottom chat bar",
+      "tags": [
+        "Appearance",
+        "Utility"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "NoUnblockToJump",
+      "version": "0.0.3",
+      "description": "Allows you to jump to messages of blocked users in search without unblocking them",
+      "tags": [
+        "Messages",
+        "Utility"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "NormalizeMessageLinks",
+      "version": "0.0.3",
+      "description": "Strips canary/ptb subdomains from message links when copying",
+      "tags": [
+        "Messages",
+        "Utility"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "NotificationVolume",
+      "version": "0.0.3",
+      "description": "Allows you to set a separate custom volume level for in-app Discord notification sounds",
+      "tags": [
+        "Notifications"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "NSFWGateBypass",
+      "version": "0.0.3",
+      "description": "Allows you to access NSFW channels without verifying your age on your account",
+      "tags": [
+        "Guilds",
+        "Utility"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "OnePingPerDM",
+      "version": "0.0.3",
+      "description": "If unread messages exist in a DM, suppresses further notification sounds until you read them",
+      "tags": [
+        "Notifications"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "oneko",
+      "version": "0.0.3",
+      "description": "Cat follow cursor / touch point on screen (oneko)",
+      "tags": [
+        "Appearance"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "OpenInApp",
+      "version": "0.0.3",
+      "description": "Opens Spotify, Steam, Epic, and Tidal links directly in their native apps",
+      "tags": [
+        "Utility",
+        "Shortcuts"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "OverrideForumDefaults",
+      "version": "0.0.3",
+      "description": "Allows you to override default forum layout (List vs Gallery) and sort order",
+      "tags": [
+        "Guilds",
+        "Appearance"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "PartyMode",
+      "version": "0.0.3",
+      "description": "Allows you to use Discord's anniversary Party Mode combos and confetti anytime",
+      "tags": [
+        "Appearance",
+        "Chat"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "PauseInvitesForever",
+      "version": "0.0.3",
+      "description": "Brings back the option to pause server invites indefinitely in server settings",
+      "tags": [
+        "Guilds"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "PermissionFreeWill",
+      "version": "0.0.3",
+      "description": "Disables client-side permission checks for channel lockouts and server onboarding",
+      "tags": [
+        "Guilds",
+        "Utility"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "PermissionsViewer",
+      "version": "0.0.3",
+      "description": "View the permissions a user or role has, and the roles of a server",
+      "tags": [
+        "Guilds",
+        "Utility"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "petpet",
+      "version": "0.0.3",
+      "description": "Adds a /petpet slash command to generate headpat GIFs of any user's avatar",
+      "tags": [
+        "Chat",
+        "Media"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "PictureInPicture",
+      "version": "0.0.3",
+      "description": "Adds picture in picture button on videos inside Discord",
+      "tags": [
+        "Media"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "PinDMs",
+      "version": "0.0.3",
+      "description": "Allows you to pin private messages and categorize them at the top of your DM list",
+      "tags": [
+        "Friends",
+        "Shortcuts"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "PlainFolderIcon",
+      "version": "0.0.3",
+      "description": "Dont show the small guild icons in server folders",
+      "tags": [
+        "Appearance",
+        "Guilds"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "PlatformIndicators",
+      "version": "0.0.3",
+      "description": "Adds platform indicators (Desktop, Mobile, Web, Embedded) to users",
+      "tags": [
+        "Appearance",
+        "Friends"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "PreviewMessage",
+      "version": "0.0.3",
+      "description": "Lets you preview your formatted message before sending it",
+      "tags": [
+        "Chat"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "QuickMention",
+      "version": "0.0.3",
+      "description": "Adds an @ mention button directly to the message actions bar",
+      "tags": [
+        "Chat",
+        "Shortcuts"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "QuickReply",
+      "version": "0.0.3",
+      "description": "Reply to (and edit) messages via quick shortcut",
+      "tags": [
+        "Chat",
+        "Shortcuts"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "ReactErrorDecoder",
+      "version": "0.0.3",
+      "description": "Replaces 'Minified React Error' crashes with the actual decoded error description",
+      "tags": [
+        "Utility"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
     },
     {
       "name": "ReadAllNotificationsButton",
-      "version": "0.0.2",
-      "enabledByDefault": true,
-      "description": "Fügt einen Button hinzu, um alle ungelesenen Server und Kanäle mit einem Tipp als gelesen zu markieren."
+      "version": "0.0.3",
+      "description": "Read all server notifications with a single button click!",
+      "tags": [
+        "Notifications",
+        "Shortcuts"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "RelationshipNotifier",
+      "version": "0.0.3",
+      "description": "Notifies you when a friend, group chat, or server removes you",
+      "tags": [
+        "Friends",
+        "Notifications"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "ReplaceGoogleSearch",
+      "version": "0.0.3",
+      "description": "Replaces the Google search engine with different Engines (DuckDuckGo, Brave, Startpage)",
+      "tags": [
+        "Utility"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "ReplyTimestamp",
+      "version": "0.0.3",
+      "description": "Shows a timestamp on replied-message previews",
+      "tags": [
+        "Messages",
+        "Appearance"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "RevealAllSpoilers",
+      "version": "0.0.3",
+      "description": "Reveal all spoilers in a message by long-pressing / Ctrl-clicking a spoiler",
+      "tags": [
+        "Messages",
+        "Shortcuts"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "ReverseImageSearch",
+      "version": "0.0.3",
+      "description": "Adds Image Search options (Google, Yandex, SauceNAO, IQDB, TinEye) to image context menus",
+      "tags": [
+        "Media",
+        "Utility"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "ReviewDB",
+      "version": "0.0.3",
+      "description": "Review other users and servers (powered by ReviewDB)",
+      "tags": [
+        "Friends",
+        "Appearance"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "RoleColorEverywhere",
+      "version": "0.0.3",
+      "description": "Adds the top role color anywhere possible (chat mentions, typing bar, voice list, member list)",
+      "tags": [
+        "Appearance",
+        "Guilds"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "SearchReply",
+      "version": "0.0.3",
+      "description": "Adds a reply button to messages in search results",
+      "tags": [
+        "Messages",
+        "Shortcuts"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "SecretRingToneEnabler",
+      "version": "0.0.3",
+      "description": "Always play the rare 0.1% secret Discord call ringtone",
+      "tags": [
+        "Voice",
+        "Media"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "SendTimestamps",
+      "version": "0.0.3",
+      "description": "Send dynamic Discord timestamps easily via a chat bar picker button",
+      "tags": [
+        "Chat",
+        "Utility"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "ServerInfo",
+      "version": "0.0.3",
+      "description": "Allows you to view detailed info about a server by long-pressing the server icon",
+      "tags": [
+        "Guilds",
+        "Utility"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "ServerListIndicators",
+      "version": "0.0.3",
+      "description": "Add online friend count or total server count indicators to the top of the server list",
+      "tags": [
+        "Appearance",
+        "Guilds"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "Settings",
+      "version": "0.0.3",
+      "description": "Adds the Vencord settings section (Vencord, Plugins, Themes, Updater, Cloud, Backup & Restore) to Discord Settings",
+      "tags": [
+        "Utility"
+      ],
+      "hasSettings": true,
+      "required": true,
+      "enabledByDefault": true
+    },
+    {
+      "name": "ShikiCodeblocks",
+      "version": "0.0.3",
+      "description": "Brings VSCode-style Shiki syntax highlighting to codeblocks in chat",
+      "tags": [
+        "Appearance",
+        "Messages"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "ShowAllMessageButtons",
+      "version": "0.0.3",
+      "description": "Always show all message action buttons without holding Shift",
+      "tags": [
+        "Messages",
+        "Shortcuts"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "ShowConnections",
+      "version": "0.0.3",
+      "description": "Show connected accounts directly in user popouts",
+      "tags": [
+        "Appearance",
+        "Friends"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "ShowHiddenChannels",
+      "version": "0.0.3",
+      "description": "Show channels that you do not have access to view!",
+      "tags": [
+        "Guilds",
+        "Utility"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "ShowHiddenThings",
+      "version": "0.0.3",
+      "description": "Displays various hidden & moderator-only things regardless of permissions",
+      "tags": [
+        "Guilds",
+        "Utility"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "ShowMeYourName",
+      "version": "0.0.3",
+      "description": "Display usernames next to display names / nicknames in chat",
+      "tags": [
+        "Appearance",
+        "Messages"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "ShowTimeoutDuration",
+      "version": "0.0.3",
+      "description": "Shows how much longer a user's timeout will last, either in the timeout icon tooltip or inline",
+      "tags": [
+        "Guilds",
+        "Messages"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "SilentMessageToggle",
+      "version": "0.0.3",
+      "description": "Adds a button to the chat bar to toggle sending a @silent message",
+      "tags": [
+        "Chat",
+        "Notifications"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "SilentTyping",
+      "version": "0.0.3",
+      "description": "Hide that you are typing from others",
+      "tags": [
+        "Privacy",
+        "Chat"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "SortFriendRequests",
+      "version": "0.0.3",
+      "description": "Sorts friend requests by date of receipt",
+      "tags": [
+        "Friends"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "SpotifyControls",
+      "version": "0.0.3",
+      "description": "Adds a Spotify player control bar above your account panel",
+      "tags": [
+        "Media",
+        "Appearance"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "SpotifyCrack",
+      "version": "0.0.3",
+      "description": "Free listen along, no auto-pausing in voice chat, and allows activity without Premium",
+      "tags": [
+        "Media",
+        "Voice"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "SpotifyShareCommands",
+      "version": "0.0.3",
+      "description": "Share your current Spotify track, album or artist via slash command (/track, /album, /artist)",
+      "tags": [
+        "Media",
+        "Chat"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "StartupTimings",
+      "version": "0.0.3",
+      "description": "Adds Startup Timings page to the Vencord settings",
+      "tags": [
+        "Utility"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "StickerPaste",
+      "version": "0.0.3",
+      "description": "Makes picking a sticker in the sticker picker insert it into the chatbox instead of sending immediately",
+      "tags": [
+        "Chat"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "StreamerModeOnStream",
+      "version": "0.0.3",
+      "description": "Automatically enables streamer mode when you start streaming in Discord",
+      "tags": [
+        "Privacy",
+        "Voice"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "Summaries",
+      "version": "0.0.3",
+      "description": "Enables Discord's AI conversation summaries feature on all servers",
+      "tags": [
+        "Messages",
+        "Guilds"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "SuperReactionTweaks",
+      "version": "0.0.3",
+      "description": "Customize the limit of super reactions playing at once, and super react by default",
+      "tags": [
+        "Chat",
+        "Appearance"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "SupportHelper",
+      "version": "0.0.3",
+      "description": "Helps us provide support to you and provides debug diagnostics",
+      "tags": [
+        "Utility"
+      ],
+      "hasSettings": false,
+      "required": true,
+      "enabledByDefault": true
+    },
+    {
+      "name": "TextReplace",
+      "version": "0.0.3",
+      "description": "Replace text in your own messages using string or regex rules",
+      "tags": [
+        "Chat"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "ThemeAttributes",
+      "version": "0.0.3",
+      "description": "Adds data attributes to various elements for CSS theming purposes",
+      "tags": [
+        "Appearance"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "TimeBarAllActivities",
+      "version": "0.0.3",
+      "description": "Adds the Spotify-like progress time bar to all rich presence activities that have start/end timestamps",
+      "tags": [
+        "Appearance"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
     },
     {
       "name": "Translate",
-      "version": "0.0.2",
-      "enabledByDefault": true,
-      "description": "Übersetzt fremdsprachige Nachrichten direkt im Nachrichtenmenü auf Deutsch."
+      "version": "0.0.3",
+      "description": "Translate messages with Google Translate or DeepL",
+      "tags": [
+        "Chat",
+        "Messages",
+        "Utility"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
     },
     {
-      "name": "BetterTimestamps",
-      "version": "0.0.2",
-      "enabledByDefault": false,
-      "description": "Zeigt genaue Uhrzeiten (inkl. Sekunden) und vollständige Datumsangaben bei Nachrichten an."
+      "name": "TypingIndicator",
+      "version": "0.0.3",
+      "description": "Adds an indicator if someone is typing on a channel in the channel list",
+      "tags": [
+        "Appearance",
+        "Guilds"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "TypingTweaks",
+      "version": "0.0.3",
+      "description": "Show avatars and role colours in the typing indicator",
+      "tags": [
+        "Appearance",
+        "Chat"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "Unindent",
+      "version": "0.0.3",
+      "description": "Trims leading indentation from codeblocks",
+      "tags": [
+        "Messages",
+        "Chat"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "UnlockedAvatarZoom",
+      "version": "0.0.3",
+      "description": "Allows you to zoom in further in the avatar crop tool",
+      "tags": [
+        "Appearance",
+        "Utility"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "UnsuppressEmbeds",
+      "version": "0.0.3",
+      "description": "Allows you to unsuppress embeds in messages",
+      "tags": [
+        "Messages"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "UrbanDictionary",
+      "version": "0.0.3",
+      "description": "Search for a word on Urban Dictionary via /urban slash command",
+      "tags": [
+        "Chat",
+        "Utility"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "UserMessagesPronouns",
+      "version": "0.0.3",
+      "description": "Adds pronouns to chat user messages",
+      "tags": [
+        "Appearance",
+        "Messages"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "UserVoiceShow",
+      "version": "0.0.3",
+      "description": "Shows an indicator when a user is in a Voice Channel",
+      "tags": [
+        "Voice",
+        "Appearance"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "USRBG",
+      "version": "0.0.3",
+      "description": "Displays user banners from USRBG database, allowing anyone to get a custom banner without Nitro",
+      "tags": [
+        "Appearance"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "ValidReply",
+      "version": "0.0.3",
+      "description": "Fixes 'Message could not be loaded' upon hovering/tapping a reply",
+      "tags": [
+        "Messages"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "ValidUser",
+      "version": "0.0.3",
+      "description": "Fix mentions for unknown/uncached users (<@id>) showing up in chat",
+      "tags": [
+        "Messages"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "VcNarrator",
+      "version": "0.0.3",
+      "description": "Announces when users join, leave, or move in your voice channel via speech synthesis",
+      "tags": [
+        "Voice"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "VencordToolbox",
+      "version": "0.0.3",
+      "description": "Adds a button to the titlebar/header that houses Vencord quick actions",
+      "tags": [
+        "Shortcuts",
+        "Utility"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "ViewIcons",
+      "version": "0.0.3",
+      "description": "Makes avatars and banners in user profiles clickable, and adds View Icon to context menus",
+      "tags": [
+        "Media",
+        "Utility"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "ViewRaw",
+      "version": "0.0.3",
+      "description": "Copy and view the raw content/data of any message, channel or guild",
+      "tags": [
+        "Utility",
+        "Messages"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "VoiceChatDoubleClick",
+      "version": "0.0.3",
+      "description": "Join voice chats via double-tap instead of single tap to prevent accidental joins",
+      "tags": [
+        "Voice",
+        "Shortcuts"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "VoiceDownload",
+      "version": "0.0.3",
+      "description": "Adds a download button to voice messages",
+      "tags": [
+        "Voice",
+        "Media"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "VoiceMessages",
+      "version": "0.0.3",
+      "description": "Allows you to send voice messages anywhere, including uploading audio files as voice messages",
+      "tags": [
+        "Voice",
+        "Chat"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "VolumeBooster",
+      "version": "0.0.3",
+      "description": "Allows you to set the user and stream volume above the default 200% maximum",
+      "tags": [
+        "Voice"
+      ],
+      "hasSettings": true,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "WhoReacted",
+      "version": "0.0.3",
+      "description": "Renders the avatars of users who reacted to a message right next to the reaction pill",
+      "tags": [
+        "Appearance",
+        "Messages"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "Wikisearch",
+      "version": "0.0.3",
+      "description": "Searches Wikipedia for your query via /wiki slash command",
+      "tags": [
+        "Chat",
+        "Utility"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": false
+    },
+    {
+      "name": "YoutubeAdblock",
+      "version": "0.0.3",
+      "description": "Block ads in YouTube embeds inside Discord via Watch2Gether player",
+      "tags": [
+        "Media",
+        "Privacy"
+      ],
+      "hasSettings": false,
+      "required": false,
+      "enabledByDefault": true
     }
   ]
 }
