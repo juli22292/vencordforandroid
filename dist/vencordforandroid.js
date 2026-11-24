@@ -1,10 +1,10 @@
 /**
- * VencordForAndroid v0.0.4
+ * VencordForAndroid v0.0.5
  * Repository: https://github.com/juli22292/vencordforandroid
  * Official Vencord Plugins adapted for Android (170 plugins)
  * Target: Official Discord Android App (com.discord / com.discord.ptb / com.discord.canary)
  * Corrupted/Blocked Versions: 0.0.1
- * Built: 2026-11-24T18:49:27.929Z
+ * Built: 2026-11-24T18:55:34.490Z
  */
 (function (global) {
 "use strict";
@@ -18,7 +18,7 @@
 const STORAGE_KEY = "VencordForAndroid_Settings_v4";
 
 const DEFAULT_SETTINGS = {
-    version: "0.0.4",
+    version: "0.0.5",
     autoUpdate: true,
     autoUpdateNotification: true,
     useQuickCss: true,
@@ -115,7 +115,7 @@ class SettingsStoreService {
             return {
                 ...DEFAULT_SETTINGS,
                 ...parsed,
-                version: "0.0.4",
+                version: "0.0.5",
                 cloud: { ...DEFAULT_SETTINGS.cloud, ...(parsed.cloud || {}) },
                 uiElements: { ...DEFAULT_SETTINGS.uiElements, ...(parsed.uiElements || {}) },
                 plugins: { ...(parsed.plugins || {}) }
@@ -232,7 +232,7 @@ class SettingsStoreService {
         this.plain = {
             ...DEFAULT_SETTINGS,
             ...parsed,
-            version: "0.0.4",
+            version: "0.0.5",
             plugins: { ...(parsed.plugins || {}) }
         };
         this.save();
@@ -825,9 +825,9 @@ const PluginManager = new PluginManagerService();
  * Follows Vendicated/Vencord/src/utils/updater.ts and Vencord/Vendroid/VencordUpdater.java
  * Pulls updates exclusively from https://github.com/juli22292/vencordforandroid
  */
-const CORE_VERSION = "0.0.4";
-const MIN_REQUIRED_VERSION = "0.0.4";
-const CORRUPTED_VERSIONS = ["0.0.1", "0.0.2", "0.0.3"];
+const CORE_VERSION = "0.0.5";
+const MIN_REQUIRED_VERSION = "0.0.2";
+const CORRUPTED_VERSIONS = ["0.0.1"];
 const CORE_REPO = "juli22292/vencordforandroid";
 const INSTALLER_REPO = "juli22292/vencordandroidapp";
 const CORE_RELEASES_API = `https://api.github.com/repos/${CORE_REPO}/releases/latest`;

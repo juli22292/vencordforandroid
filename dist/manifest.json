@@ -1,33 +1,29 @@
 {
   "name": "VencordForAndroid",
-  "version": "0.0.4",
-  "minRequiredVersion": "0.0.4",
-  "minInstallerVersion": "0.0.4",
+  "version": "0.0.5",
+  "minRequiredVersion": "0.0.2",
+  "minInstallerVersion": "0.0.2",
   "corruptedVersions": [
-    "0.0.1",
-    "0.0.2",
-    "0.0.3"
+    "0.0.1"
   ],
   "forceUpdateFrom": [
-    "0.0.1",
-    "0.0.2",
-    "0.0.3"
+    "0.0.1"
   ],
-  "corruptedMessage": "Diese ältere Version ist gesperrt! Bitte aktualisiere auf Version 0.0.4.",
+  "corruptedMessage": "Version 0.0.1 ist veraltet. Bitte aktualisiere auf Version 0.0.5.",
   "targetApp": "com.discord",
   "repository": "juli22292/vencordforandroid",
   "installerRepository": "juli22292/vencordandroidapp",
   "bundleFile": "vencordforandroid.js",
-  "bundleUrl": "https://github.com/juli22292/vencordforandroid/releases/download/0.0.4/vencordforandroid.js",
+  "bundleUrl": "https://github.com/juli22292/vencordforandroid/releases/download/0.0.5/vencordforandroid.js",
   "rawBundleUrl": "https://raw.githubusercontent.com/juli22292/vencordforandroid/main/dist/vencordforandroid.js",
-  "sha256": "7ae084f2ac6dfd890e13ec55c96666b24c14f6d8ddbb196159c69df0b6dabc72",
-  "builtAt": "2026-11-24T18:49:27.933Z",
+  "sha256": "f52c53529ffae7b011b143af90bcb98f74a8fe3c0b9200e405a8f05ec595ebc2",
+  "builtAt": "2026-11-24T18:55:34.493Z",
   "pluginCount": 170,
-  "changelog": "v0.0.4: Offizielle Vencord Settings-Oberfläche (Vencord, Plugins, Themes, Updater, Cloud, Backup & Restore) in den Discord-Einstellungen sowie 170 offizielle Vencord-Plugins für Android.",
+  "changelog": "v0.0.5: Offizielle Vencord Settings-Oberfläche (Vencord, Plugins, Themes, Updater, Cloud, Backup & Restore) in den Discord-Einstellungen sowie 170 offizielle Vencord-Plugins für Android.",
   "plugins": [
     {
       "name": "AccountPanelServerProfile",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Right click your account panel in the bottom left to view your profile in the current server",
       "tags": [
         "Appearance",
@@ -39,7 +35,7 @@
     },
     {
       "name": "AddAttachments",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Allows you to add new attachments while editing messages",
       "tags": [
         "Chat",
@@ -51,7 +47,7 @@
     },
     {
       "name": "AlwaysAnimate",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Animates anything that can be animated",
       "tags": [
         "Appearance",
@@ -63,7 +59,7 @@
     },
     {
       "name": "AlwaysExpandRoles",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Always expands the role list in profile popouts",
       "tags": [
         "Appearance",
@@ -75,7 +71,7 @@
     },
     {
       "name": "AlwaysTrust",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Removes the annoying untrusted domain and suspicious file popup",
       "tags": [
         "Utility",
@@ -87,7 +83,7 @@
     },
     {
       "name": "AnonymiseFileNames",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Anonymise uploaded file names",
       "tags": [
         "Privacy",
@@ -99,7 +95,7 @@
     },
     {
       "name": "AppleMusicRichPresence",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Discord rich presence for your Apple Music status on Android",
       "tags": [
         "Media",
@@ -111,7 +107,7 @@
     },
     {
       "name": "AutomodContext",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Allows you to jump to the message surrounding an Automod hit",
       "tags": [
         "Guilds",
@@ -123,7 +119,7 @@
     },
     {
       "name": "BetterFolders",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Shows server folders on dedicated sidebar and allows auto-closing folders",
       "tags": [
         "Appearance",
@@ -135,7 +131,7 @@
     },
     {
       "name": "BetterGifAltText",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Change GIF alt text from simply being 'GIF' to containing the GIF's tags/title",
       "tags": [
         "Media",
@@ -147,7 +143,7 @@
     },
     {
       "name": "BetterGifPicker",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Makes the gif picker open the favorite category by default",
       "tags": [
         "Media",
@@ -159,7 +155,7 @@
     },
     {
       "name": "BetterNotesBox",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Hide notes or disable spellcheck in user profile notes",
       "tags": [
         "Appearance",
@@ -171,7 +167,7 @@
     },
     {
       "name": "BetterRoleContext",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds options to copy role color / ID / icon when tapping a role in profile popouts",
       "tags": [
         "Guilds",
@@ -183,7 +179,7 @@
     },
     {
       "name": "BetterRoleDot",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Copy role colour on RoleDot click and use both RoleDot and coloured names simultaneously",
       "tags": [
         "Appearance",
@@ -195,7 +191,7 @@
     },
     {
       "name": "BetterSessions",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Enhances the active sessions (Devices) page with custom device names and notifications",
       "tags": [
         "Privacy",
@@ -207,7 +203,7 @@
     },
     {
       "name": "BetterSettings",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Enhances your settings menu opening speed and navigation experience",
       "tags": [
         "Appearance",
@@ -219,7 +215,7 @@
     },
     {
       "name": "BetterUploadButton",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Upload with a single tap instead of opening the attachment menu",
       "tags": [
         "Chat",
@@ -231,7 +227,7 @@
     },
     {
       "name": "BiggerStreamPreview",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "This plugin allows you to enlarge stream previews in voice channels",
       "tags": [
         "Voice",
@@ -243,7 +239,7 @@
     },
     {
       "name": "BlurNSFW",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Blur attachments in NSFW channels until you tap them",
       "tags": [
         "Privacy",
@@ -255,7 +251,7 @@
     },
     {
       "name": "CallTimer",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds a live duration timer to any voice call or voice channel",
       "tags": [
         "Voice",
@@ -267,7 +263,7 @@
     },
     {
       "name": "ClearURLs",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Removes tracking garbage (utm_*, fbclid, si, igshid) from URLs before sending",
       "tags": [
         "Privacy",
@@ -279,7 +275,7 @@
     },
     {
       "name": "ClientTheme",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Recreation of the old Discord client theme experiment with custom hex color picker",
       "tags": [
         "Appearance"
@@ -290,7 +286,7 @@
     },
     {
       "name": "ColorSighted",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Removes the colorblind-friendly icons from status indicators, leaving pure round status dots",
       "tags": [
         "Appearance"
@@ -301,7 +297,7 @@
     },
     {
       "name": "ConsoleJanitor",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Disables annoying console logs and warnings from Discord internals",
       "tags": [
         "Utility"
@@ -312,7 +308,7 @@
     },
     {
       "name": "ConsoleShortcuts",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds shorter aliases for common debugging functions on the global window object",
       "tags": [
         "Utility"
@@ -323,7 +319,7 @@
     },
     {
       "name": "CopyEmojiMarkdown",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Allows you to copy the raw markdown (<:name:id>) of an emoji from its popout",
       "tags": [
         "Chat",
@@ -335,7 +331,7 @@
     },
     {
       "name": "CopyFileContents",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds a button to text file attachments to copy their contents to clipboard",
       "tags": [
         "Chat",
@@ -347,7 +343,7 @@
     },
     {
       "name": "CopyUserURLs",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds a 'Copy User URL' (<https://discord.com/users/id>) entry to user profiles",
       "tags": [
         "Friends",
@@ -359,7 +355,7 @@
     },
     {
       "name": "CrashHandler",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Utility plugin for handling and recovering from Discord UI crashes without restarting",
       "tags": [
         "Utility"
@@ -370,7 +366,7 @@
     },
     {
       "name": "CtrlEnterSend",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Customize how the Enter / Send key behaves when typing messages",
       "tags": [
         "Chat",
@@ -382,7 +378,7 @@
     },
     {
       "name": "CustomIdle",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Allows you to set a custom idle timeout or disable auto-idle completely",
       "tags": [
         "Utility",
@@ -394,7 +390,7 @@
     },
     {
       "name": "CustomRPC",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Add a fully customisable Rich Presence (Game / Stream / Listening status) to your Discord profile",
       "tags": [
         "Appearance",
@@ -406,7 +402,7 @@
     },
     {
       "name": "Dearrow",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Makes YouTube video titles and thumbnails less clickbaity using CrowdSourced DeArrow data",
       "tags": [
         "Media",
@@ -418,7 +414,7 @@
     },
     {
       "name": "Decor",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Create and use custom avatar decorations for free with other Vencord users",
       "tags": [
         "Appearance"
@@ -429,7 +425,7 @@
     },
     {
       "name": "DisableCallIdle",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Disables automatically getting kicked from a DM voice call after 3 minutes alone",
       "tags": [
         "Voice"
@@ -440,7 +436,7 @@
     },
     {
       "name": "DontRoundMyTimestamps",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Prevents Discord from rounding relative timestamps up to the next unit",
       "tags": [
         "Messages",
@@ -452,7 +448,7 @@
     },
     {
       "name": "Experiments",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Enable Access to Experiments & other dev-only features in Discord!",
       "tags": [
         "Utility"
@@ -463,7 +459,7 @@
     },
     {
       "name": "FakeNitro",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Allows you to stream in nitro quality, send fake emojis/stickers, use client themes and custom icons",
       "tags": [
         "Chat",
@@ -476,7 +472,7 @@
     },
     {
       "name": "FakeProfileThemes",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Allows profile theming by hiding the colors as invisible 3y3 encoding in your bio",
       "tags": [
         "Appearance"
@@ -487,7 +483,7 @@
     },
     {
       "name": "FavoriteEmojiFirst",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Puts your favorite emojis first in the emoji autocomplete list",
       "tags": [
         "Chat",
@@ -499,7 +495,7 @@
     },
     {
       "name": "FavoriteGifSearch",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds a search bar to your favorite gifs menu",
       "tags": [
         "Media",
@@ -511,7 +507,7 @@
     },
     {
       "name": "FixCodeblockGap",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Removes the awkward empty gap below codeblocks in messages",
       "tags": [
         "Appearance",
@@ -523,7 +519,7 @@
     },
     {
       "name": "FixImagesQuality",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Improves quality of images in chat by forcing original WebP/PNG resolution",
       "tags": [
         "Media",
@@ -535,7 +531,7 @@
     },
     {
       "name": "FixSpotifyEmbeds",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Fixes spotify embeds being way too loud by letting you configure their default volume",
       "tags": [
         "Media"
@@ -546,7 +542,7 @@
     },
     {
       "name": "FixYoutubeEmbeds",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Bypasses youtube videos being blocked from playing inside Discord embeds",
       "tags": [
         "Media"
@@ -557,7 +553,7 @@
     },
     {
       "name": "ForceOwnerCrown",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Force the owner crown next to usernames even if the server is very large",
       "tags": [
         "Appearance",
@@ -569,7 +565,7 @@
     },
     {
       "name": "FriendInvites",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Create and manage friend invite links via slash commands (/create friend invite)",
       "tags": [
         "Friends",
@@ -581,7 +577,7 @@
     },
     {
       "name": "FriendsSince",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Displays when you became friends with someone in their user profile popout",
       "tags": [
         "Friends",
@@ -593,7 +589,7 @@
     },
     {
       "name": "FullSearchContext",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Makes the message context menu in search results have all standard options",
       "tags": [
         "Messages",
@@ -605,7 +601,7 @@
     },
     {
       "name": "GameActivityToggle",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds a button next to the mic and deafen button to toggle game activity visibility",
       "tags": [
         "Appearance",
@@ -617,7 +613,7 @@
     },
     {
       "name": "GifPaste",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Makes picking a GIF in the gif picker insert a link into the chatbox instead of instantly sending it",
       "tags": [
         "Chat",
@@ -629,7 +625,7 @@
     },
     {
       "name": "GreetStickerPicker",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Allows you to use any welcome sticker instead of only the random default sticker",
       "tags": [
         "Chat"
@@ -640,7 +636,7 @@
     },
     {
       "name": "HideAttachments",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Allow hiding attachments and embeds for individual messages via a toggle button",
       "tags": [
         "Media",
@@ -652,7 +648,7 @@
     },
     {
       "name": "IgnoreActivities",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Ignore specific activities from showing up on your status or others' profiles",
       "tags": [
         "Privacy",
@@ -664,7 +660,7 @@
     },
     {
       "name": "iLoveSpam",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Do not collapse messages from 'likely spammers' automatically",
       "tags": [
         "Chat",
@@ -676,7 +672,7 @@
     },
     {
       "name": "ImageFilename",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Display the file name of images & videos as a tooltip / overlay",
       "tags": [
         "Media",
@@ -688,7 +684,7 @@
     },
     {
       "name": "ImageZoom",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Lets you zoom in to images and gifs inside Discord with a magnifier lens",
       "tags": [
         "Media"
@@ -699,7 +695,7 @@
     },
     {
       "name": "ImplicitRelationships",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Shows your implicit relationships (Discord affinity score) in the Friends tab",
       "tags": [
         "Friends"
@@ -710,7 +706,7 @@
     },
     {
       "name": "InvisibleChat",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Encrypt your messages in invisible zero-width characters so only Vencord users can read them",
       "tags": [
         "Privacy",
@@ -722,7 +718,7 @@
     },
     {
       "name": "KeepCurrentChannel",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Attempt to navigate back to the exact channel you had open before restarting Discord",
       "tags": [
         "Utility",
@@ -734,7 +730,7 @@
     },
     {
       "name": "LastFMRichPresence",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Little plugin for Last.fm rich presence status",
       "tags": [
         "Media",
@@ -746,7 +742,7 @@
     },
     {
       "name": "LoadingQuotes",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Replace Discord's loading quotes with custom Vencord quotes",
       "tags": [
         "Appearance"
@@ -757,7 +753,7 @@
     },
     {
       "name": "MemberCount",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Shows the amount of online and total members in the server member list and tooltip",
       "tags": [
         "Guilds",
@@ -769,7 +765,7 @@
     },
     {
       "name": "MentionAvatars",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Shows user avatars inside @mentions in chat",
       "tags": [
         "Appearance",
@@ -781,7 +777,7 @@
     },
     {
       "name": "MessageClickActions",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Double-tap a message to quick-reply or edit your own message",
       "tags": [
         "Chat",
@@ -793,7 +789,7 @@
     },
     {
       "name": "MessageLatency",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Displays an indicator for messages that took >= N seconds to arrive",
       "tags": [
         "Messages",
@@ -805,7 +801,7 @@
     },
     {
       "name": "MessageLinkEmbeds",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Previews the contents of linked Discord messages directly in chat",
       "tags": [
         "Messages",
@@ -817,7 +813,7 @@
     },
     {
       "name": "MessageLogger",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Temporarily logs deleted and edited messages in chat",
       "tags": [
         "Messages",
@@ -830,7 +826,7 @@
     },
     {
       "name": "MessageTags",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Allows you to save custom snippets and to send them with a simple slash command",
       "tags": [
         "Chat",
@@ -842,7 +838,7 @@
     },
     {
       "name": "MoreCommands",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds various fun and useful slash commands (/echo, /lenny, /mock, /shrug)",
       "tags": [
         "Chat"
@@ -853,7 +849,7 @@
     },
     {
       "name": "MoreKaomoji",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds more Kaomoji to Discord's built-in slash commands",
       "tags": [
         "Chat"
@@ -864,7 +860,7 @@
     },
     {
       "name": "MoreUserTags",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds tags for webhooks and moderation roles (Owner, Admin, Mod, Staff, Voice) in chat",
       "tags": [
         "Appearance",
@@ -876,7 +872,7 @@
     },
     {
       "name": "Moyai",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "🗿 Vine boom sound effect whenever someone sends or reacts with 🗿",
       "tags": [
         "Chat",
@@ -888,7 +884,7 @@
     },
     {
       "name": "MutualGroupDMs",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Shows mutual group DMs in user profiles next to Mutual Servers and Mutual Friends",
       "tags": [
         "Friends",
@@ -900,7 +896,7 @@
     },
     {
       "name": "NewGuildSettings",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Automatically mute new servers or apply default notification preferences upon joining",
       "tags": [
         "Guilds",
@@ -912,7 +908,7 @@
     },
     {
       "name": "NoBlockedMessages",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Hides all blocked messages from chat completely",
       "tags": [
         "Chat",
@@ -924,7 +920,7 @@
     },
     {
       "name": "NoDevtoolsWarning",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Disables the 'Hold Up!' console warning and prevents Self-XSS token logging",
       "tags": [
         "Utility",
@@ -936,7 +932,7 @@
     },
     {
       "name": "NoF1",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Disables F1 help bind inside Discord",
       "tags": [
         "Shortcuts"
@@ -947,7 +943,7 @@
     },
     {
       "name": "NoMaskedUrlPaste",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Pasting a link while having text selected will not paste as a masked URL",
       "tags": [
         "Chat"
@@ -958,7 +954,7 @@
     },
     {
       "name": "NoMosaic",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Removes Discord image mosaic layout so multiple images stack cleanly",
       "tags": [
         "Media",
@@ -970,7 +966,7 @@
     },
     {
       "name": "NoOnboardingDelay",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Skips the slow onboarding delay when joining a community server",
       "tags": [
         "Guilds"
@@ -981,7 +977,7 @@
     },
     {
       "name": "NoPendingCount",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Removes the ping count of incoming friend requests, message requests, and nitro offers",
       "tags": [
         "Notifications",
@@ -993,7 +989,7 @@
     },
     {
       "name": "NoProfileThemes",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Completely removes Nitro profile themes from everyone's profile popouts",
       "tags": [
         "Appearance"
@@ -1004,7 +1000,7 @@
     },
     {
       "name": "NoReplyMention",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Automatically sets replies to not ping the target user by default",
       "tags": [
         "Chat",
@@ -1016,7 +1012,7 @@
     },
     {
       "name": "NoRPC",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Disables Discord's local RPC server entirely",
       "tags": [
         "Privacy"
@@ -1027,7 +1023,7 @@
     },
     {
       "name": "NoScreensharePreview",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Disables screenshare previews from being sent to reduce mobile data & battery usage",
       "tags": [
         "Voice",
@@ -1039,7 +1035,7 @@
     },
     {
       "name": "NoServerEmojis",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Do not show other servers' emojis in the emoji autocomplete menu",
       "tags": [
         "Chat"
@@ -1050,7 +1046,7 @@
     },
     {
       "name": "NoSystemBadge",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Disables the unread badge count on the system launcher icon",
       "tags": [
         "Notifications"
@@ -1061,7 +1057,7 @@
     },
     {
       "name": "NoTrack",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Disable Discord's tracking ('science'/analytics) and crash reporting",
       "tags": [
         "Privacy"
@@ -1072,7 +1068,7 @@
     },
     {
       "name": "NoTypingAnimation",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Disables the CPU-intensive typing dots animation in the bottom chat bar",
       "tags": [
         "Appearance",
@@ -1084,7 +1080,7 @@
     },
     {
       "name": "NoUnblockToJump",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Allows you to jump to messages of blocked users in search without unblocking them",
       "tags": [
         "Messages",
@@ -1096,7 +1092,7 @@
     },
     {
       "name": "NormalizeMessageLinks",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Strips canary/ptb subdomains from message links when copying",
       "tags": [
         "Messages",
@@ -1108,7 +1104,7 @@
     },
     {
       "name": "NotificationVolume",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Allows you to set a separate custom volume level for in-app Discord notification sounds",
       "tags": [
         "Notifications"
@@ -1119,7 +1115,7 @@
     },
     {
       "name": "NSFWGateBypass",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Allows you to access NSFW channels without verifying your age on your account",
       "tags": [
         "Guilds",
@@ -1131,7 +1127,7 @@
     },
     {
       "name": "OnePingPerDM",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "If unread messages exist in a DM, suppresses further notification sounds until you read them",
       "tags": [
         "Notifications"
@@ -1142,7 +1138,7 @@
     },
     {
       "name": "oneko",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Cat follow cursor / touch point on screen (oneko)",
       "tags": [
         "Appearance"
@@ -1153,7 +1149,7 @@
     },
     {
       "name": "OpenInApp",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Opens Spotify, Steam, Epic, and Tidal links directly in their native apps",
       "tags": [
         "Utility",
@@ -1165,7 +1161,7 @@
     },
     {
       "name": "OverrideForumDefaults",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Allows you to override default forum layout (List vs Gallery) and sort order",
       "tags": [
         "Guilds",
@@ -1177,7 +1173,7 @@
     },
     {
       "name": "PartyMode",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Allows you to use Discord's anniversary Party Mode combos and confetti anytime",
       "tags": [
         "Appearance",
@@ -1189,7 +1185,7 @@
     },
     {
       "name": "PauseInvitesForever",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Brings back the option to pause server invites indefinitely in server settings",
       "tags": [
         "Guilds"
@@ -1200,7 +1196,7 @@
     },
     {
       "name": "PermissionFreeWill",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Disables client-side permission checks for channel lockouts and server onboarding",
       "tags": [
         "Guilds",
@@ -1212,7 +1208,7 @@
     },
     {
       "name": "PermissionsViewer",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "View the permissions a user or role has, and the roles of a server",
       "tags": [
         "Guilds",
@@ -1224,7 +1220,7 @@
     },
     {
       "name": "petpet",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds a /petpet slash command to generate headpat GIFs of any user's avatar",
       "tags": [
         "Chat",
@@ -1236,7 +1232,7 @@
     },
     {
       "name": "PictureInPicture",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds picture in picture button on videos inside Discord",
       "tags": [
         "Media"
@@ -1247,7 +1243,7 @@
     },
     {
       "name": "PinDMs",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Allows you to pin private messages and categorize them at the top of your DM list",
       "tags": [
         "Friends",
@@ -1259,7 +1255,7 @@
     },
     {
       "name": "PlainFolderIcon",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Dont show the small guild icons in server folders",
       "tags": [
         "Appearance",
@@ -1271,7 +1267,7 @@
     },
     {
       "name": "PlatformIndicators",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds platform indicators (Desktop, Mobile, Web, Embedded) to users",
       "tags": [
         "Appearance",
@@ -1283,7 +1279,7 @@
     },
     {
       "name": "PreviewMessage",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Lets you preview your formatted message before sending it",
       "tags": [
         "Chat"
@@ -1294,7 +1290,7 @@
     },
     {
       "name": "QuickMention",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds an @ mention button directly to the message actions bar",
       "tags": [
         "Chat",
@@ -1306,7 +1302,7 @@
     },
     {
       "name": "QuickReply",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Reply to (and edit) messages via quick shortcut",
       "tags": [
         "Chat",
@@ -1318,7 +1314,7 @@
     },
     {
       "name": "ReactErrorDecoder",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Replaces 'Minified React Error' crashes with the actual decoded error description",
       "tags": [
         "Utility"
@@ -1329,7 +1325,7 @@
     },
     {
       "name": "ReadAllNotificationsButton",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Read all server notifications with a single button click!",
       "tags": [
         "Notifications",
@@ -1341,7 +1337,7 @@
     },
     {
       "name": "RelationshipNotifier",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Notifies you when a friend, group chat, or server removes you",
       "tags": [
         "Friends",
@@ -1353,7 +1349,7 @@
     },
     {
       "name": "ReplaceGoogleSearch",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Replaces the Google search engine with different Engines (DuckDuckGo, Brave, Startpage)",
       "tags": [
         "Utility"
@@ -1364,7 +1360,7 @@
     },
     {
       "name": "ReplyTimestamp",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Shows a timestamp on replied-message previews",
       "tags": [
         "Messages",
@@ -1376,7 +1372,7 @@
     },
     {
       "name": "RevealAllSpoilers",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Reveal all spoilers in a message by long-pressing / Ctrl-clicking a spoiler",
       "tags": [
         "Messages",
@@ -1388,7 +1384,7 @@
     },
     {
       "name": "ReverseImageSearch",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds Image Search options (Google, Yandex, SauceNAO, IQDB, TinEye) to image context menus",
       "tags": [
         "Media",
@@ -1400,7 +1396,7 @@
     },
     {
       "name": "ReviewDB",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Review other users and servers (powered by ReviewDB)",
       "tags": [
         "Friends",
@@ -1412,7 +1408,7 @@
     },
     {
       "name": "RoleColorEverywhere",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds the top role color anywhere possible (chat mentions, typing bar, voice list, member list)",
       "tags": [
         "Appearance",
@@ -1424,7 +1420,7 @@
     },
     {
       "name": "SearchReply",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds a reply button to messages in search results",
       "tags": [
         "Messages",
@@ -1436,7 +1432,7 @@
     },
     {
       "name": "SecretRingToneEnabler",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Always play the rare 0.1% secret Discord call ringtone",
       "tags": [
         "Voice",
@@ -1448,7 +1444,7 @@
     },
     {
       "name": "SendTimestamps",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Send dynamic Discord timestamps easily via a chat bar picker button",
       "tags": [
         "Chat",
@@ -1460,7 +1456,7 @@
     },
     {
       "name": "ServerInfo",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Allows you to view detailed info about a server by long-pressing the server icon",
       "tags": [
         "Guilds",
@@ -1472,7 +1468,7 @@
     },
     {
       "name": "ServerListIndicators",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Add online friend count or total server count indicators to the top of the server list",
       "tags": [
         "Appearance",
@@ -1484,7 +1480,7 @@
     },
     {
       "name": "Settings",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds the Vencord settings section (Vencord, Plugins, Themes, Updater, Cloud, Backup & Restore) to Discord Settings",
       "tags": [
         "Utility"
@@ -1495,7 +1491,7 @@
     },
     {
       "name": "ShikiCodeblocks",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Brings VSCode-style Shiki syntax highlighting to codeblocks in chat",
       "tags": [
         "Appearance",
@@ -1507,7 +1503,7 @@
     },
     {
       "name": "ShowAllMessageButtons",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Always show all message action buttons without holding Shift",
       "tags": [
         "Messages",
@@ -1519,7 +1515,7 @@
     },
     {
       "name": "ShowConnections",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Show connected accounts directly in user popouts",
       "tags": [
         "Appearance",
@@ -1531,7 +1527,7 @@
     },
     {
       "name": "ShowHiddenChannels",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Show channels that you do not have access to view!",
       "tags": [
         "Guilds",
@@ -1543,7 +1539,7 @@
     },
     {
       "name": "ShowHiddenThings",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Displays various hidden & moderator-only things regardless of permissions",
       "tags": [
         "Guilds",
@@ -1555,7 +1551,7 @@
     },
     {
       "name": "ShowMeYourName",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Display usernames next to display names / nicknames in chat",
       "tags": [
         "Appearance",
@@ -1567,7 +1563,7 @@
     },
     {
       "name": "ShowTimeoutDuration",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Shows how much longer a user's timeout will last, either in the timeout icon tooltip or inline",
       "tags": [
         "Guilds",
@@ -1579,7 +1575,7 @@
     },
     {
       "name": "SilentMessageToggle",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds a button to the chat bar to toggle sending a @silent message",
       "tags": [
         "Chat",
@@ -1591,7 +1587,7 @@
     },
     {
       "name": "SilentTyping",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Hide that you are typing from others",
       "tags": [
         "Privacy",
@@ -1603,7 +1599,7 @@
     },
     {
       "name": "SortFriendRequests",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Sorts friend requests by date of receipt",
       "tags": [
         "Friends"
@@ -1614,7 +1610,7 @@
     },
     {
       "name": "SpotifyControls",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds a Spotify player control bar above your account panel",
       "tags": [
         "Media",
@@ -1626,7 +1622,7 @@
     },
     {
       "name": "SpotifyCrack",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Free listen along, no auto-pausing in voice chat, and allows activity without Premium",
       "tags": [
         "Media",
@@ -1638,7 +1634,7 @@
     },
     {
       "name": "SpotifyShareCommands",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Share your current Spotify track, album or artist via slash command (/track, /album, /artist)",
       "tags": [
         "Media",
@@ -1650,7 +1646,7 @@
     },
     {
       "name": "StartupTimings",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds Startup Timings page to the Vencord settings",
       "tags": [
         "Utility"
@@ -1661,7 +1657,7 @@
     },
     {
       "name": "StickerPaste",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Makes picking a sticker in the sticker picker insert it into the chatbox instead of sending immediately",
       "tags": [
         "Chat"
@@ -1672,7 +1668,7 @@
     },
     {
       "name": "StreamerModeOnStream",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Automatically enables streamer mode when you start streaming in Discord",
       "tags": [
         "Privacy",
@@ -1684,7 +1680,7 @@
     },
     {
       "name": "Summaries",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Enables Discord's AI conversation summaries feature on all servers",
       "tags": [
         "Messages",
@@ -1696,7 +1692,7 @@
     },
     {
       "name": "SuperReactionTweaks",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Customize the limit of super reactions playing at once, and super react by default",
       "tags": [
         "Chat",
@@ -1708,7 +1704,7 @@
     },
     {
       "name": "SupportHelper",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Helps us provide support to you and provides debug diagnostics",
       "tags": [
         "Utility"
@@ -1719,7 +1715,7 @@
     },
     {
       "name": "TextReplace",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Replace text in your own messages using string or regex rules",
       "tags": [
         "Chat"
@@ -1730,7 +1726,7 @@
     },
     {
       "name": "ThemeAttributes",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds data attributes to various elements for CSS theming purposes",
       "tags": [
         "Appearance"
@@ -1741,7 +1737,7 @@
     },
     {
       "name": "TimeBarAllActivities",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds the Spotify-like progress time bar to all rich presence activities that have start/end timestamps",
       "tags": [
         "Appearance"
@@ -1752,7 +1748,7 @@
     },
     {
       "name": "Translate",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Translate messages with Google Translate or DeepL",
       "tags": [
         "Chat",
@@ -1765,7 +1761,7 @@
     },
     {
       "name": "TypingIndicator",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds an indicator if someone is typing on a channel in the channel list",
       "tags": [
         "Appearance",
@@ -1777,7 +1773,7 @@
     },
     {
       "name": "TypingTweaks",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Show avatars and role colours in the typing indicator",
       "tags": [
         "Appearance",
@@ -1789,7 +1785,7 @@
     },
     {
       "name": "Unindent",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Trims leading indentation from codeblocks",
       "tags": [
         "Messages",
@@ -1801,7 +1797,7 @@
     },
     {
       "name": "UnlockedAvatarZoom",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Allows you to zoom in further in the avatar crop tool",
       "tags": [
         "Appearance",
@@ -1813,7 +1809,7 @@
     },
     {
       "name": "UnsuppressEmbeds",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Allows you to unsuppress embeds in messages",
       "tags": [
         "Messages"
@@ -1824,7 +1820,7 @@
     },
     {
       "name": "UrbanDictionary",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Search for a word on Urban Dictionary via /urban slash command",
       "tags": [
         "Chat",
@@ -1836,7 +1832,7 @@
     },
     {
       "name": "UserMessagesPronouns",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds pronouns to chat user messages",
       "tags": [
         "Appearance",
@@ -1848,7 +1844,7 @@
     },
     {
       "name": "UserVoiceShow",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Shows an indicator when a user is in a Voice Channel",
       "tags": [
         "Voice",
@@ -1860,7 +1856,7 @@
     },
     {
       "name": "USRBG",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Displays user banners from USRBG database, allowing anyone to get a custom banner without Nitro",
       "tags": [
         "Appearance"
@@ -1871,7 +1867,7 @@
     },
     {
       "name": "ValidReply",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Fixes 'Message could not be loaded' upon hovering/tapping a reply",
       "tags": [
         "Messages"
@@ -1882,7 +1878,7 @@
     },
     {
       "name": "ValidUser",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Fix mentions for unknown/uncached users (<@id>) showing up in chat",
       "tags": [
         "Messages"
@@ -1893,7 +1889,7 @@
     },
     {
       "name": "VcNarrator",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Announces when users join, leave, or move in your voice channel via speech synthesis",
       "tags": [
         "Voice"
@@ -1904,7 +1900,7 @@
     },
     {
       "name": "VencordToolbox",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds a button to the titlebar/header that houses Vencord quick actions",
       "tags": [
         "Shortcuts",
@@ -1916,7 +1912,7 @@
     },
     {
       "name": "ViewIcons",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Makes avatars and banners in user profiles clickable, and adds View Icon to context menus",
       "tags": [
         "Media",
@@ -1928,7 +1924,7 @@
     },
     {
       "name": "ViewRaw",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Copy and view the raw content/data of any message, channel or guild",
       "tags": [
         "Utility",
@@ -1940,7 +1936,7 @@
     },
     {
       "name": "VoiceChatDoubleClick",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Join voice chats via double-tap instead of single tap to prevent accidental joins",
       "tags": [
         "Voice",
@@ -1952,7 +1948,7 @@
     },
     {
       "name": "VoiceDownload",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Adds a download button to voice messages",
       "tags": [
         "Voice",
@@ -1964,7 +1960,7 @@
     },
     {
       "name": "VoiceMessages",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Allows you to send voice messages anywhere, including uploading audio files as voice messages",
       "tags": [
         "Voice",
@@ -1976,7 +1972,7 @@
     },
     {
       "name": "VolumeBooster",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Allows you to set the user and stream volume above the default 200% maximum",
       "tags": [
         "Voice"
@@ -1987,7 +1983,7 @@
     },
     {
       "name": "WhoReacted",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Renders the avatars of users who reacted to a message right next to the reaction pill",
       "tags": [
         "Appearance",
@@ -1999,7 +1995,7 @@
     },
     {
       "name": "Wikisearch",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Searches Wikipedia for your query via /wiki slash command",
       "tags": [
         "Chat",
@@ -2011,7 +2007,7 @@
     },
     {
       "name": "YoutubeAdblock",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "description": "Block ads in YouTube embeds inside Discord via Watch2Gether player",
       "tags": [
         "Media",
