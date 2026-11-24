@@ -153,14 +153,34 @@ class PatcherAndModuleEngine {
         }
     }
 
+    _getMetroModulesMap() {
+        if (typeof globalThis === "undefined") return null;
+        let raw = globalThis.modules;
+        if (!raw && typeof globalThis.__c === "function") {
+            try {
+                raw = globalThis.__c();
+                if (raw) globalThis.modules = raw;
+            } catch (_) {}
+        }
+        if (!raw) return null;
+        if (raw instanceof Map) {
+            try {
+                const obj = Object.fromEntries(raw);
+                globalThis.modules = obj;
+                return obj;
+            } catch (_) {
+                return null;
+            }
+        }
+        return raw;
+    }
+
     _getModuleList() {
         const list = [];
         try {
-            // 1. React Native Metro modules map (Discord Android com.discord)
-            if (typeof globalThis !== "undefined" && globalThis.modules) {
-                const modulesMap = globalThis.modules instanceof Map
-                    ? Object.fromEntries(globalThis.modules)
-                    : globalThis.modules;
+            // 1. React Native Metro modules map via globalThis.modules / globalThis.__c()
+            const modulesMap = this._getMetroModulesMap();
+            if (modulesMap) {
                 for (const key of Object.keys(modulesMap)) {
                     const mod = modulesMap[key];
                     if (mod?.isInitialized && mod?.publicModule?.exports) {
@@ -201,12 +221,10 @@ class PatcherAndModuleEngine {
     findDeepInMetro(filterFn) {
         const quick = this.find(filterFn);
         if (quick) return quick;
-        if (typeof globalThis === "undefined" || !globalThis.modules || typeof globalThis.__r !== "function") {
+        const modulesMap = this._getMetroModulesMap();
+        if (!modulesMap || typeof globalThis.__r !== "function") {
             return null;
         }
-        const modulesMap = globalThis.modules instanceof Map
-            ? Object.fromEntries(globalThis.modules)
-            : globalThis.modules;
         const origErrHandler = globalThis.ErrorUtils?.getGlobalHandler?.();
         try {
             if (globalThis.ErrorUtils?.setGlobalHandler) {

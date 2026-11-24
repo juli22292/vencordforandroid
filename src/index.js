@@ -94,44 +94,67 @@ function bootstrapIntoDiscordMetro() {
 
     if (typeof globalThis.__r === "undefined") {
         let _requireFunc;
+        let _defineFunc;
         let booted = false;
 
         try {
-            Object.defineProperty(globalThis, "__r", {
-                configurable: true,
-                get() {
-                    return _requireFunc;
-                },
-                set(origRequire) {
-                    _requireFunc = function patchedMetroRequire(moduleId) {
-                        if (moduleId === 0 && !booted) {
-                            booted = true;
-                            try {
-                                if (globalThis.modules instanceof Map) {
-                                    globalThis.modules = Object.fromEntries(globalThis.modules);
+            Object.defineProperties(globalThis, {
+                __r: {
+                    configurable: true,
+                    get() {
+                        return _requireFunc;
+                    },
+                    set(origRequire) {
+                        _requireFunc = function patchedMetroRequire(moduleId) {
+                            if (moduleId === 0 && !booted) {
+                                booted = true;
+                                try {
+                                    if (!globalThis.modules && typeof globalThis.__c === "function") {
+                                        globalThis.modules = globalThis.__c();
+                                    }
+                                    if (globalThis.modules instanceof Map) {
+                                        globalThis.modules = Object.fromEntries(globalThis.modules);
+                                    }
+                                } catch (_) {}
+
+                                _requireFunc = origRequire;
+
+                                try {
+                                    VencordForAndroid.init();
+                                } catch (e) {
+                                    console.error("[VencordForAndroid] Pre-boot error:", e);
                                 }
-                            } catch (_) {}
 
-                            // Restore real __r BEFORE initializing Vencord so Patcher.findDeepInMetro can use __r safely
-                            _requireFunc = origRequire;
-
-                            // Initialize VencordForAndroid BEFORE Discord executes origRequire(0) so createList & SETTING_RENDERER_CONFIG are patched in time!
-                            try {
-                                VencordForAndroid.init();
-                            } catch (e) {
-                                console.error("[VencordForAndroid] Pre-boot error:", e);
+                                return origRequire(moduleId);
                             }
-
                             return origRequire(moduleId);
+                        };
+                    }
+                },
+                __d: {
+                    configurable: true,
+                    get() {
+                        if (globalThis.Object && !globalThis.modules && typeof globalThis.__c === "function") {
+                            try {
+                                globalThis.modules = globalThis.__c();
+                            } catch (_) {}
                         }
-                        return origRequire(moduleId);
-                    };
+                        return _defineFunc;
+                    },
+                    set(v) {
+                        _defineFunc = v;
+                    }
                 }
             });
         } catch (_) {
             VencordForAndroid.init();
         }
     } else {
+        if (!globalThis.modules && typeof globalThis.__c === "function") {
+            try {
+                globalThis.modules = globalThis.__c();
+            } catch (_) {}
+        }
         VencordForAndroid.init();
     }
 }

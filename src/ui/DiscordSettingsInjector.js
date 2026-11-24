@@ -180,7 +180,22 @@ export class DiscordSettingsInjector {
                     }
                 });
 
-                // Patch 2: Fallback patch directly on SettingsOverviewScreen
+                // Patch 2: 2026 Discord Android SettingListRenderer.SettingsList
+                Patcher.waitFor(["SettingsList"], (SettingListRenderer) => {
+                    if (SettingListRenderer && typeof SettingListRenderer.SettingsList === "function") {
+                        this.unpatches.push(
+                            Patcher.before("VencordSettingsListRenderer", SettingListRenderer, "SettingsList", (args) => {
+                                const props = args[0];
+                                if (props && Array.isArray(props.sections)) {
+                                    injectSectionIntoList(props.sections);
+                                }
+                                return args;
+                            })
+                        );
+                    }
+                });
+
+                // Patch 3: Fallback patch directly on SettingsOverviewScreen
                 Patcher.waitFor("SettingsOverviewScreen", (SettingsOverviewMod) => {
                     const targetObj = SettingsOverviewMod?.default ? SettingsOverviewMod : null;
                     if (targetObj && typeof targetObj.default === "function") {

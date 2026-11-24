@@ -6,7 +6,7 @@
 const STORAGE_KEY = "VencordForAndroid_Settings_v4";
 
 const DEFAULT_SETTINGS = {
-    version: "0.0.8",
+    version: "0.0.9",
     autoUpdate: true,
     autoUpdateNotification: true,
     useQuickCss: true,
@@ -105,7 +105,7 @@ class SettingsStoreService {
             return {
                 ...DEFAULT_SETTINGS,
                 ...parsed,
-                version: "0.0.8",
+                version: "0.0.9",
                 cloud: { ...DEFAULT_SETTINGS.cloud, ...(parsed.cloud || {}) },
                 uiElements: { ...DEFAULT_SETTINGS.uiElements, ...(parsed.uiElements || {}) },
                 plugins: { ...(parsed.plugins || {}) }
@@ -222,7 +222,7 @@ class SettingsStoreService {
         this.plain = {
             ...DEFAULT_SETTINGS,
             ...parsed,
-            version: "0.0.8",
+            version: "0.0.9",
             plugins: { ...(parsed.plugins || {}) }
         };
         this.save();
