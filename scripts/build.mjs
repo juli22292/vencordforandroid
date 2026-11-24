@@ -1,6 +1,7 @@
 /**
- * Build script for VencordForAndroid
+ * Build script for VencordForAndroid v0.0.2
  * Produces dist/vencordforandroid.js and dist/manifest.json
+ * Marks v0.0.1 as corrupted and requires v0.0.2+.
  */
 
 import fs from "node:fs";
@@ -13,7 +14,7 @@ const rootDir = path.resolve(__dirname, "..");
 const distDir = path.join(rootDir, "dist");
 
 const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, "package.json"), "utf8"));
-const version = pkg.version || "0.0.1";
+const version = pkg.version || "0.0.2";
 
 const moduleOrder = [
     "src/core/Settings.js",
@@ -42,6 +43,8 @@ for (const relPath of moduleOrder) {
 const banner = `/**
  * VencordForAndroid v${version}
  * Repository: https://github.com/juli22292/vencordforandroid
+ * Target: Official Discord Android App (com.discord / com.discord.ptb / com.discord.canary)
+ * Corrupted/Blocked Versions: 0.0.1
  * Built: ${new Date().toISOString()}
  */
 (function (global) {
@@ -63,6 +66,12 @@ const sha256 = crypto.createHash("sha256").update(bundleContent).digest("hex");
 const manifest = {
     name: "VencordForAndroid",
     version,
+    minRequiredVersion: "0.0.2",
+    minInstallerVersion: "0.0.2",
+    corruptedVersions: ["0.0.1"],
+    forceUpdateFrom: ["0.0.1"],
+    corruptedMessage: "Version 0.0.1 ist beschädigt und unbenutzbar! Bitte sofort auf Version 0.0.2 aktualisieren.",
+    targetApp: "com.discord",
     repository: "juli22292/vencordforandroid",
     installerRepository: "juli22292/vencordandroidapp",
     bundleFile: "vencordforandroid.js",
@@ -70,6 +79,7 @@ const manifest = {
     rawBundleUrl: "https://raw.githubusercontent.com/juli22292/vencordforandroid/main/dist/vencordforandroid.js",
     sha256,
     builtAt: new Date().toISOString(),
+    changelog: "v0.0.2: Direkte Injektion in die bereits installierte offizielle Discord-App (com.discord) ohne WebView-Neuanmeldung. Version 0.0.1 wurde als beschädigt gesperrt.",
     plugins: [
         { name: "AlwaysAnimate", version, enabledByDefault: true, description: "Animiert Server-Icons, Avatare, Banner und Nitro-Emojis dauerhaft ohne Antippen." },
         { name: "ClearURLs", version, enabledByDefault: true, description: "Entfernt automatisch Tracking-Parameter (utm_*, fbclid, si, igshid) beim Senden von Links." },
@@ -85,4 +95,4 @@ const manifest = {
 };
 
 fs.writeFileSync(path.join(distDir, "manifest.json"), JSON.stringify(manifest, null, 2), "utf8");
-console.log(`[Build] Built dist/vencordforandroid.js (${bundleContent.length} bytes, sha256=${sha256.slice(0, 12)}...)`);
+console.log(`[Build] Built dist/vencordforandroid.js v${version} (${bundleContent.length} bytes, sha256=${sha256.slice(0, 12)}...)`);

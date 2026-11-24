@@ -1,71 +1,82 @@
 {
   "name": "VencordForAndroid",
-  "version": "0.0.1",
+  "version": "0.0.2",
+  "minRequiredVersion": "0.0.2",
+  "minInstallerVersion": "0.0.2",
+  "corruptedVersions": [
+    "0.0.1"
+  ],
+  "forceUpdateFrom": [
+    "0.0.1"
+  ],
+  "corruptedMessage": "Version 0.0.1 ist beschädigt und unbenutzbar! Bitte sofort auf Version 0.0.2 aktualisieren.",
+  "targetApp": "com.discord",
   "repository": "juli22292/vencordforandroid",
   "installerRepository": "juli22292/vencordandroidapp",
   "bundleFile": "vencordforandroid.js",
-  "bundleUrl": "https://github.com/juli22292/vencordforandroid/releases/download/0.0.1/vencordforandroid.js",
+  "bundleUrl": "https://github.com/juli22292/vencordforandroid/releases/download/0.0.2/vencordforandroid.js",
   "rawBundleUrl": "https://raw.githubusercontent.com/juli22292/vencordforandroid/main/dist/vencordforandroid.js",
-  "sha256": "d6a620a723e687981e7f02fd4d15e7d210ec95426ecd1814008de4342704773b",
-  "builtAt": "2026-11-24T17:54:27.085Z",
+  "sha256": "994c2933b460c2cc3499d2cd44d939c3aafd0b25ecad5572da17eb98d0f9a57b",
+  "builtAt": "2026-11-24T18:11:24.333Z",
+  "changelog": "v0.0.2: Direkte Injektion in die bereits installierte offizielle Discord-App (com.discord) ohne WebView-Neuanmeldung. Version 0.0.1 wurde als beschädigt gesperrt.",
   "plugins": [
     {
       "name": "AlwaysAnimate",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "enabledByDefault": true,
       "description": "Animiert Server-Icons, Avatare, Banner und Nitro-Emojis dauerhaft ohne Antippen."
     },
     {
       "name": "ClearURLs",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "enabledByDefault": true,
       "description": "Entfernt automatisch Tracking-Parameter (utm_*, fbclid, si, igshid) beim Senden von Links."
     },
     {
       "name": "FakeNitro",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "enabledByDefault": true,
       "description": "Ermöglicht das Senden von animierten & externen Custom-Emojis sowie Stickern ohne Nitro als eingebettete Links."
     },
     {
       "name": "MessageLogger",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "enabledByDefault": true,
       "description": "Speichert gelöschte und bearbeitete Nachrichten lokal im Chat und markiert sie farblich."
     },
     {
       "name": "NoReplyMention",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "enabledByDefault": true,
       "description": "Deaktiviert standardmäßig den @Ping beim Antworten auf Nachrichten."
     },
     {
       "name": "SilentTyping",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "enabledByDefault": false,
       "description": "Verbirgt deinen 'Schreibt gerade...'-Indikator für andere Nutzer im Chat."
     },
     {
       "name": "ShowHiddenChannels",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "enabledByDefault": false,
       "description": "Zeigt versteckte Kanäle auf Servern inklusive Kanal-Thema und Berechtigungsübersicht an."
     },
     {
       "name": "ReadAllNotificationsButton",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "enabledByDefault": true,
       "description": "Fügt einen Button hinzu, um alle ungelesenen Server und Kanäle mit einem Tipp als gelesen zu markieren."
     },
     {
       "name": "Translate",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "enabledByDefault": true,
       "description": "Übersetzt fremdsprachige Nachrichten direkt im Nachrichtenmenü auf Deutsch."
     },
     {
       "name": "BetterTimestamps",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "enabledByDefault": false,
       "description": "Zeigt genaue Uhrzeiten (inkl. Sekunden) und vollständige Datumsangaben bei Nachrichten an."
     }

@@ -1,7 +1,11 @@
 {
   "name": "vencordforandroid",
-  "version": "0.0.1",
-  "description": "VencordForAndroid core mod and custom plugin runtime for Discord on Android",
+  "version": "0.0.2",
+  "minInstallerVersion": "0.0.2",
+  "corruptedVersions": [
+    "0.0.1"
+  ],
+  "description": "VencordForAndroid core mod and custom plugin runtime injected into the official Discord Android app",
   "main": "dist/vencordforandroid.js",
   "repository": {
     "type": "git",

@@ -1,7 +1,9 @@
 /**
- * VencordForAndroid v0.0.1
+ * VencordForAndroid v0.0.2
  * Repository: https://github.com/juli22292/vencordforandroid
- * Built: 2026-11-24T17:54:27.071Z
+ * Target: Official Discord Android App (com.discord / com.discord.ptb / com.discord.canary)
+ * Corrupted/Blocked Versions: 0.0.1
+ * Built: 2026-11-24T18:11:24.330Z
  */
 (function (global) {
 "use strict";
@@ -15,7 +17,7 @@
 const STORAGE_KEY = "VencordForAndroid_Settings_v1";
 
 const DEFAULT_SETTINGS = {
-    version: "0.0.1",
+    version: "0.0.2",
     installedAt: null,
     autoUpdateCheck: true,
     notifyOnUpdates: true,
@@ -491,24 +493,30 @@ const PluginManager = new PluginManagerService();
 
 // --- Module: src/core/Updater.js ---
 /**
- * VencordForAndroid - In-App Updater
+ * VencordForAndroid - In-App Updater & Version Policy Enforcement
  * Checks and installs updates exclusively from https://github.com/juli22292/vencordforandroid
- * (Strictly separated from the installer repository juli22292/vencordandroidapp)
+ * Blocks corrupted versions (0.0.1) and forces an immediate update to 0.0.2+.
  */
-const CORE_VERSION = "0.0.1";
+const CORE_VERSION = "0.0.2";
+const MIN_REQUIRED_VERSION = "0.0.2";
+const CORRUPTED_VERSIONS = ["0.0.1"];
 const CORE_REPO = "juli22292/vencordforandroid";
+const INSTALLER_REPO = "juli22292/vencordandroidapp";
 const CORE_RELEASES_API = `https://api.github.com/repos/${CORE_REPO}/releases/latest`;
 const CORE_MANIFEST_URL = `https://raw.githubusercontent.com/${CORE_REPO}/main/dist/manifest.json`;
 const CORE_BUNDLE_URL = `https://raw.githubusercontent.com/${CORE_REPO}/main/dist/vencordforandroid.js`;
+const INSTALLER_LATEST_RELEASE_URL = `https://github.com/${INSTALLER_REPO}/releases/latest`;
 
 class UpdaterService {
     constructor() {
         this.lastCheck = null;
         this.latestVersion = CORE_VERSION;
         this.updateAvailable = false;
+        this.forceUpdateRequired = false;
+        this.corruptedVersions = [...CORRUPTED_VERSIONS];
         this.releaseNotes = "";
         this.downloadUrl = CORE_BUNDLE_URL;
-        this.status = "idle"; // idle | checking | update-available | downloading | up-to-date | error
+        this.status = "idle";
         this.errorMessage = null;
     }
 
@@ -526,6 +534,47 @@ class UpdaterService {
         return 0;
     }
 
+    isVersionCorrupted(versionStr) {
+        const cleanVer = String(versionStr || "").replace(/^v/i, "").trim();
+        if (this.corruptedVersions.includes(cleanVer)) return true;
+        if (this.compareVersions(cleanVer, MIN_REQUIRED_VERSION) > 0) return true;
+        return false;
+    }
+
+    enforceVersionPolicy(hostInstallerVersion) {
+        if (hostInstallerVersion && this.isVersionCorrupted(hostInstallerVersion)) {
+            this.forceUpdateRequired = true;
+            this.renderCorruptedVersionLockScreen(hostInstallerVersion);
+            return false;
+        }
+        return true;
+    }
+
+    renderCorruptedVersionLockScreen(detectedVersion = "0.0.1") {
+        if (typeof document === "undefined") return;
+        let lock = document.getElementById("vfa-corrupted-lock");
+        if (!lock) {
+            lock = document.createElement("div");
+            lock.id = "vfa-corrupted-lock";
+            lock.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:#111214;color:#f2f3f5;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:sans-serif;";
+            document.body.appendChild(lock);
+        }
+        lock.innerHTML = `
+            <div style="background:#2b2d31;border:2px solid #da373c;border-radius:14px;padding:24px;max-width:420px;width:100%;">
+                <div style="background:#da373c;color:#fff;display:inline-block;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;margin-bottom:12px;">
+                    VERSION ${detectedVersion} BESCHÄDIGT & GESPERRT
+                </div>
+                <h2 style="margin:0 0 10px 0;font-size:20px;color:#fff;">Pflicht-Update auf v${CORE_VERSION} erforderlich</h2>
+                <p style="font-size:14px;color:#b5bac1;line-height:1.5;margin:0 0 18px 0;">
+                    Die installierte Version <b>v${detectedVersion}</b> ist als beschädigt markiert und wurde deaktiviert, da sie sich nicht direkt in die bestehende offizielle Discord-App integriert hat. Bitte aktualisiere jetzt auf <b>v${CORE_VERSION}</b>.
+                </p>
+                <a href="${INSTALLER_LATEST_RELEASE_URL}" style="display:block;background:#23a55a;color:#fff;text-decoration:none;padding:13px 18px;border-radius:8px;font-weight:700;font-size:15px;">
+                    Update v${CORE_VERSION} jetzt herunterladen
+                </a>
+            </div>
+        `;
+    }
+
     async checkForUpdates() {
         this.status = "checking";
         this.errorMessage = null;
@@ -535,27 +584,31 @@ class UpdaterService {
             let notes = "";
             let bundleUrl = CORE_BUNDLE_URL;
 
-            // 1. Check latest GitHub Release of juli22292/vencordforandroid
+            // Check manifest first for corrupted version policy
+            try {
+                const manifestRes = await fetch(CORE_MANIFEST_URL, { cache: "no-store" });
+                if (manifestRes.ok) {
+                    const manifest = await manifestRes.json();
+                    if (Array.isArray(manifest.corruptedVersions)) {
+                        this.corruptedVersions = manifest.corruptedVersions;
+                    }
+                    remoteVersion = manifest.version || CORE_VERSION;
+                    notes = manifest.changelog || "";
+                    bundleUrl = manifest.rawBundleUrl || CORE_BUNDLE_URL;
+                }
+            } catch (_) {}
+
             const releaseRes = await fetch(CORE_RELEASES_API, {
                 headers: { Accept: "application/vnd.github+json" }
             });
 
             if (releaseRes.ok) {
                 const releaseData = await releaseRes.json();
-                remoteVersion = (releaseData.tag_name || releaseData.name || CORE_VERSION).replace(/^v/i, "");
-                notes = releaseData.body || "Neues Update für VencordForAndroid und Plugins verfügbar.";
+                remoteVersion = (releaseData.tag_name || releaseData.name || remoteVersion).replace(/^v/i, "");
+                notes = releaseData.body || notes || "Neues Update für VencordForAndroid und Plugins verfügbar.";
                 const asset = (releaseData.assets || []).find((a) => a.name === "vencordforandroid.js");
                 if (asset && asset.browser_download_url) {
                     bundleUrl = asset.browser_download_url;
-                }
-            } else {
-                // Fallback to manifest.json on main branch
-                const manifestRes = await fetch(CORE_MANIFEST_URL, { cache: "no-store" });
-                if (manifestRes.ok) {
-                    const manifest = await manifestRes.json();
-                    remoteVersion = manifest.version || CORE_VERSION;
-                    notes = manifest.changelog || "Update über main-Branch verfügbar.";
-                    bundleUrl = manifest.bundleUrl || CORE_BUNDLE_URL;
                 }
             }
 
@@ -570,6 +623,7 @@ class UpdaterService {
                 currentVersion: CORE_VERSION,
                 latestVersion: this.latestVersion,
                 updateAvailable: this.updateAvailable,
+                corruptedVersions: this.corruptedVersions,
                 releaseNotes: this.releaseNotes,
                 downloadUrl: this.downloadUrl,
                 repository: CORE_REPO
@@ -596,7 +650,6 @@ class UpdaterService {
             }
             const bundleCode = await res.text();
 
-            // Persist bundle into local hot-update cache for immediate load on Discord restart
             if (typeof globalThis !== "undefined") {
                 if (globalThis.__VENCORD_ANDROID_BRIDGE__?.saveBundleUpdate) {
                     await globalThis.__VENCORD_ANDROID_BRIDGE__.saveBundleUpdate(bundleCode, this.latestVersion);
@@ -1362,7 +1415,8 @@ const SettingsInjector = new DiscordSettingsInjector();
 /**
  * VencordForAndroid - Main Entry Point
  * Repository: https://github.com/juli22292/vencordforandroid
- * Version: 0.0.1
+ * Version: 0.0.2
+ * Injects directly into the existing official Discord Android app (com.discord).
  */
 
 
@@ -1373,7 +1427,9 @@ const SettingsInjector = new DiscordSettingsInjector();
 class VencordForAndroidRuntime {
     constructor() {
         this.version = CORE_VERSION;
+        this.corruptedVersions = CORRUPTED_VERSIONS;
         this.repository = CORE_REPO;
+        this.targetPackage = "com.discord";
         this.initialized = false;
         this.Settings = Settings;
         this.Patcher = Patcher;
@@ -1385,7 +1441,25 @@ class VencordForAndroidRuntime {
 
     async init() {
         if (this.initialized) return;
-        console.log(`[VencordForAndroid] Initializing v${this.version} (${this.repository})...`);
+
+        // Check if host installer or previously cached state is on corrupted version 0.0.1
+        let hostVersion = null;
+        try {
+            if (typeof globalThis !== "undefined" && globalThis.AndroidInstaller?.getSystemStatusJson) {
+                const status = JSON.parse(globalThis.AndroidInstaller.getSystemStatusJson());
+                hostVersion = status.installerVersion;
+            } else if (typeof globalThis !== "undefined" && globalThis.__VENCORD_HOST_VERSION__) {
+                hostVersion = globalThis.__VENCORD_HOST_VERSION__;
+            }
+        } catch (_) {}
+
+        if (hostVersion && !Updater.enforceVersionPolicy(hostVersion)) {
+            console.error(`[VencordForAndroid] Blocked execution on corrupted version v${hostVersion}. Update to v${this.version} required.`);
+            return;
+        }
+
+        Settings.set("version", this.version);
+        console.log(`[VencordForAndroid] Initializing v${this.version} inside official Discord (${this.targetPackage})...`);
 
         // 1. Register all built-in and custom plugins
         PluginManager.registerAll(BUILTIN_PLUGINS);
@@ -1393,20 +1467,20 @@ class VencordForAndroidRuntime {
         // 2. Start all enabled plugins
         PluginManager.startAllEnabled();
 
-        // 3. Inject "VencordForAndroid" section into Discord Settings ("Einstellungen", "Plugins", "Updater", "Backup & Reset")
+        // 3. Inject "VencordForAndroid" section into the official Discord app Settings ("Einstellungen", "Plugins", "Updater", "Backup & Reset")
         SettingsInjector.init();
 
         this.initialized = true;
-        console.log(`[VencordForAndroid] Loaded ${PluginManager.getAllPlugins().length} plugins successfully.`);
+        console.log(`[VencordForAndroid] Loaded ${PluginManager.getAllPlugins().length} plugins into official Discord app.`);
 
-        // 4. Optional auto-update check against juli22292/vencordforandroid
+        // 4. Auto-update check against juli22292/vencordforandroid
         if (Settings.get("autoUpdateCheck")) {
             Updater.checkForUpdates().catch(() => {});
         }
     }
 
     uninstall() {
-        console.log("[VencordForAndroid] Uninstalling VencordForAndroid and all plugins...");
+        console.log("[VencordForAndroid] Uninstalling VencordForAndroid and all plugins from official Discord...");
         SettingsInjector.closeSettingsModal();
         const section = typeof document !== "undefined" ? document.getElementById("vfa-discord-settings-section") : null;
         if (section) section.remove();

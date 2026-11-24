@@ -6,7 +6,7 @@
 const STORAGE_KEY = "VencordForAndroid_Settings_v1";
 
 const DEFAULT_SETTINGS = {
-    version: "0.0.1",
+    version: "0.0.2",
     installedAt: null,
     autoUpdateCheck: true,
     notifyOnUpdates: true,
