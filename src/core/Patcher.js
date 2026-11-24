@@ -104,10 +104,14 @@ class PatcherAndModuleEngine {
     }
 
     // --- 3. Discord Metro (React Native Android) & Webpack Module Discovery ---
+    attachToMetroRequire() {
+        this._hookModuleLoaders();
+    }
+
     _hookModuleLoaders() {
         if (typeof globalThis === "undefined") return;
 
-        // Hook Discord Android React Native Metro require (__r) if present
+        // Hook Discord Android React Native Metro require (__r) if present and not yet hooked
         if (typeof globalThis.__r === "function" && !globalThis.__r.__vencordHooked) {
             const origRequire = globalThis.__r;
             const self = this;
@@ -119,8 +123,18 @@ class PatcherAndModuleEngine {
                 return exports;
             };
             hookedRequire.__vencordHooked = true;
-            Object.assign(hookedRequire, origRequire);
-            globalThis.__r = hookedRequire;
+            try {
+                Object.assign(hookedRequire, origRequire);
+            } catch (_) {}
+            try {
+                Object.defineProperty(globalThis, "__r", {
+                    configurable: true,
+                    writable: true,
+                    value: hookedRequire
+                });
+            } catch (_) {
+                globalThis.__r = hookedRequire;
+            }
         }
     }
 
@@ -199,6 +213,7 @@ class PatcherAndModuleEngine {
                 globalThis.ErrorUtils.setGlobalHandler(() => {});
             }
             for (const key of Object.keys(modulesMap)) {
+                if (key === "0") continue;
                 const mod = modulesMap[key];
                 if (!mod || mod.hasError) continue;
                 try {
@@ -269,13 +284,15 @@ class PatcherAndModuleEngine {
     }
 
     waitFor(filterOrProps, callback) {
+        this._hookModuleLoaders();
+
         const filter = Array.isArray(filterOrProps)
-            ? (m) => m && filterOrProps.every((p) => p in m)
+            ? (m) => m && (typeof m === "object" || typeof m === "function") && filterOrProps.every((p) => p in m)
             : typeof filterOrProps === "string"
-                ? (m) => m && (filterOrProps in m || m.displayName === filterOrProps || m.name === filterOrProps)
+                ? (m) => m && (typeof m === "object" || typeof m === "function") && (filterOrProps in m || m.displayName === filterOrProps || m.name === filterOrProps)
                 : filterOrProps;
 
-        const existing = this.find(filter) || this.findDeepInMetro(filter);
+        const existing = this.find(filter);
         if (existing) {
             callback(existing);
             return;
@@ -283,21 +300,21 @@ class PatcherAndModuleEngine {
         const sub = { filter, callback };
         this.waitSubscriptions.add(sub);
 
-        // Periodic fallback check in case Metro loads the module lazily after startup
-        let attempts = 0;
-        const timer = setInterval(() => {
-            attempts++;
-            if (!this.waitSubscriptions.has(sub) || attempts > 40) {
-                clearInterval(timer);
-                return;
-            }
-            const found = this.find(filter);
-            if (found) {
-                this.waitSubscriptions.delete(sub);
-                clearInterval(timer);
-                callback(found);
-            }
-        }, 500);
+        // Keep polling gently once React Native polyfills setInterval
+        if (typeof setInterval === "function") {
+            const timer = setInterval(() => {
+                if (!this.waitSubscriptions.has(sub)) {
+                    clearInterval(timer);
+                    return;
+                }
+                const found = this.find(filter);
+                if (found) {
+                    this.waitSubscriptions.delete(sub);
+                    clearInterval(timer);
+                    callback(found);
+                }
+            }, 750);
+        }
     }
 
     get Common() {

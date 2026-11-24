@@ -6,7 +6,7 @@
 
 import { Settings } from "./Settings.js";
 
-export const CORE_VERSION = "0.0.7";
+export const CORE_VERSION = "0.0.8";
 export const MIN_REQUIRED_VERSION = "0.0.2";
 export const CORRUPTED_VERSIONS = ["0.0.1"];
 export const CORE_REPO = "juli22292/vencordforandroid";
