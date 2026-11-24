@@ -1,57 +1,87 @@
 /**
- * VencordForAndroid v0.0.3
+ * VencordForAndroid v0.0.4
  * Repository: https://github.com/juli22292/vencordforandroid
  * Official Vencord Plugins adapted for Android (170 plugins)
  * Target: Official Discord Android App (com.discord / com.discord.ptb / com.discord.canary)
  * Corrupted/Blocked Versions: 0.0.1
- * Built: 2026-11-24T18:29:52.205Z
+ * Built: 2026-11-24T18:48:59.515Z
  */
 (function (global) {
 "use strict";
 
 // --- Module: src/core/Settings.js ---
 /**
- * VencordForAndroid - Persistent Settings Store (v0.0.3)
- * Manages core configuration, QuickCSS, themes, UI element visibility, and per-plugin state.
+ * VencordForAndroid v0.0.4 - Settings & SettingsStore API
+ * Follows Vendicated/Vencord/src/api/Settings.ts architecture for Discord Android (MMKV / NativeBridge / Storage).
  */
 
-const STORAGE_KEY = "VencordForAndroid_Settings_v1";
+const STORAGE_KEY = "VencordForAndroid_Settings_v4";
 
 const DEFAULT_SETTINGS = {
-    version: "0.0.3",
-    installedAt: null,
-    autoUpdateCheck: true,
-    notifyOnUpdates: true,
-    safeMode: false,
-    developerMode: false,
+    version: "0.0.4",
+    autoUpdate: true,
+    autoUpdateNotification: true,
     useQuickCss: true,
     quickCss: "",
     themeLinks: [],
-    uiElements: {
-        chatBarButtons: true,
-        messagePopoverButtons: true
+    enabledThemes: [],
+    enableReactDevtools: false,
+    safeMode: false,
+    settingsLocation: "aboveNitro",
+    cloud: {
+        authenticated: false,
+        url: "https://api.vencord.dev/",
+        settingsSync: false,
+        settingsSyncVersion: 0
     },
-    repoOwner: "juli22292",
-    repoName: "vencordforandroid",
-    repoUrl: "https://github.com/juli22292/vencordforandroid",
-    installerRepoUrl: "https://github.com/juli22292/vencordandroidapp",
+    uiElements: {
+        chatBarButtons: {},
+        messagePopoverButtons: {}
+    },
     plugins: {}
 };
+const OptionType = {
+    STRING: 0,
+    NUMBER: 1,
+    BIGINT: 2,
+    BOOLEAN: 3,
+    SELECT: 4,
+    SLIDER: 5,
+    COMPONENT: 6,
+    CUSTOM: 7
+};
+function definePluginSettings(def) {
+    const defined = {
+        def,
+        pluginName: "",
+        get store() {
+            return Settings.getPluginOptionsProxy(this.pluginName, def);
+        },
+        withPrivateSettings() {
+            return this;
+        }
+    };
+    return defined;
+}
 
-class SettingsManager {
+class SettingsStoreService {
     constructor() {
-        this.state = this._load();
-        this.listeners = new Set();
+        this.plain = this._load();
+        this.globalListeners = new Set();
+        this.pathListeners = new Map();
     }
 
-    _getStorageBackend() {
+    _getNativeStorage() {
         if (typeof globalThis !== "undefined") {
-            if (globalThis.__VENCORD_NATIVE_STORAGE__) {
-                return globalThis.__VENCORD_NATIVE_STORAGE__;
+            // 1. Native Xposed / Loader Bridge inside com.discord
+            if (globalThis.__VENCORD_NATIVE_BRIDGE__ && typeof globalThis.__VENCORD_NATIVE_BRIDGE__.readSettingsJson === "function") {
+                return {
+                    getItem: () => globalThis.__VENCORD_NATIVE_BRIDGE__.readSettingsJson(),
+                    setItem: (_k, v) => globalThis.__VENCORD_NATIVE_BRIDGE__.writeSettingsJson(v),
+                    removeItem: () => globalThis.__VENCORD_NATIVE_BRIDGE__.writeSettingsJson("")
+                };
             }
-            if (globalThis.localStorage) {
-                return globalThis.localStorage;
-            }
+            // 2. Discord React Native MMKV storage
             if (globalThis.mmkvStorage) {
                 return {
                     getItem: (k) => globalThis.mmkvStorage.getString(k) ?? null,
@@ -59,159 +89,197 @@ class SettingsManager {
                     removeItem: (k) => globalThis.mmkvStorage.delete(k)
                 };
             }
+            // 3. Web / DOM localStorage
+            if (globalThis.localStorage) {
+                return globalThis.localStorage;
+            }
         }
-        if (!this._memoryFallback) {
-            this._memoryFallback = new Map();
-        }
+        if (!this._mem) this._mem = new Map();
         return {
-            getItem: (k) => this._memoryFallback.get(k) ?? null,
-            setItem: (k, v) => this._memoryFallback.set(k, v),
-            removeItem: (k) => this._memoryFallback.delete(k)
+            getItem: (k) => this._mem.get(k) ?? null,
+            setItem: (k, v) => this._mem.set(k, v),
+            removeItem: (k) => this._mem.delete(k)
         };
     }
 
     _load() {
         try {
-            const backend = this._getStorageBackend();
-            const raw = backend.getItem(STORAGE_KEY);
+            const storage = this._getNativeStorage();
+            const raw = storage.getItem(STORAGE_KEY);
             if (!raw) {
-                const initial = {
-                    ...DEFAULT_SETTINGS,
-                    installedAt: new Date().toISOString()
-                };
-                backend.setItem(STORAGE_KEY, JSON.stringify(initial));
-                return initial;
+                const init = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+                storage.setItem(STORAGE_KEY, JSON.stringify(init));
+                return init;
             }
             const parsed = JSON.parse(raw);
             return {
                 ...DEFAULT_SETTINGS,
                 ...parsed,
-                version: "0.0.3",
+                version: "0.0.4",
+                cloud: { ...DEFAULT_SETTINGS.cloud, ...(parsed.cloud || {}) },
+                uiElements: { ...DEFAULT_SETTINGS.uiElements, ...(parsed.uiElements || {}) },
                 plugins: { ...(parsed.plugins || {}) }
             };
         } catch (err) {
-            console.error("[VencordForAndroid] Failed to load settings:", err);
-            return { ...DEFAULT_SETTINGS };
+            return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
         }
     }
 
-    save() {
+    save(changedPath = "") {
         try {
-            const backend = this._getStorageBackend();
-            backend.setItem(STORAGE_KEY, JSON.stringify(this.state));
-            this._emit();
+            const storage = this._getNativeStorage();
+            storage.setItem(STORAGE_KEY, JSON.stringify(this.plain));
+            this._notify(changedPath);
         } catch (err) {
-            console.error("[VencordForAndroid] Failed to save settings:", err);
+            console.error("[VencordForAndroid:SettingsStore] Save failed:", err);
         }
     }
 
     get(key) {
-        return this.state[key];
+        return this.plain[key];
     }
 
     set(key, value) {
-        this.state[key] = value;
-        this.save();
+        this.plain[key] = value;
+        this.save(key);
     }
 
     getPluginConfig(pluginName, defaults = {}) {
-        if (!this.state.plugins[pluginName]) {
-            this.state.plugins[pluginName] = {
+        if (!this.plain.plugins[pluginName]) {
+            this.plain.plugins[pluginName] = {
                 enabled: Boolean(defaults.enabledByDefault),
                 options: { ...(defaults.defaultOptions || {}) }
             };
+        } else if (!this.plain.plugins[pluginName].options) {
+            this.plain.plugins[pluginName].options = { ...(defaults.defaultOptions || {}) };
         }
-        return this.state.plugins[pluginName];
+        return this.plain.plugins[pluginName];
+    }
+
+    getPluginOptionsProxy(pluginName, def = {}) {
+        const defaultOptions = {};
+        for (const [k, opt] of Object.entries(def)) {
+            defaultOptions[k] = opt.default !== undefined
+                ? opt.default
+                : (Array.isArray(opt.options) ? opt.options.find((o) => o.default)?.value : undefined);
+        }
+        const cfg = this.getPluginConfig(pluginName, { defaultOptions });
+        const self = this;
+        return new Proxy(cfg.options, {
+            get(target, prop) {
+                if (prop in target) return target[prop];
+                return defaultOptions[prop];
+            },
+            set(target, prop, value) {
+                target[prop] = value;
+                self.save(`plugins.${pluginName}.${String(prop)}`);
+                return true;
+            }
+        });
     }
 
     setPluginEnabled(pluginName, enabled) {
         const cfg = this.getPluginConfig(pluginName);
         cfg.enabled = Boolean(enabled);
-        this.save();
-        if (typeof globalThis !== "undefined" && globalThis.__VENCORD_ANDROID_BRIDGE__?.setPluginEnabledNative) {
-            try {
-                globalThis.__VENCORD_ANDROID_BRIDGE__.setPluginEnabledNative(pluginName, Boolean(enabled));
-            } catch (_) {}
-        }
+        this.save(`plugins.${pluginName}.enabled`);
     }
 
     setPluginOption(pluginName, optionKey, value) {
         const cfg = this.getPluginConfig(pluginName);
         if (!cfg.options) cfg.options = {};
         cfg.options[optionKey] = value;
-        this.save();
+        this.save(`plugins.${pluginName}.${optionKey}`);
     }
 
-    subscribe(listener) {
-        this.listeners.add(listener);
-        return () => this.listeners.delete(listener);
+    addGlobalChangeListener(cb) {
+        this.globalListeners.add(cb);
+        return () => this.globalListeners.delete(cb);
     }
 
-    _emit() {
-        for (const listener of this.listeners) {
+    subscribe(cb) {
+        return this.addGlobalChangeListener(cb);
+    }
+
+    addChangeListener(path, cb) {
+        if (!this.pathListeners.has(path)) {
+            this.pathListeners.set(path, new Set());
+        }
+        this.pathListeners.get(path).add(cb);
+        return () => this.pathListeners.get(path)?.delete(cb);
+    }
+
+    _notify(path) {
+        for (const cb of this.globalListeners) {
             try {
-                listener(this.state);
-            } catch (err) {
-                console.error("[VencordForAndroid] Settings listener error:", err);
+                cb(this.plain, path);
+            } catch (_) {}
+        }
+        if (path && this.pathListeners.has(path)) {
+            for (const cb of this.pathListeners.get(path)) {
+                try {
+                    cb();
+                } catch (_) {}
             }
         }
     }
 
     exportJSON() {
-        return JSON.stringify(this.state, null, 2);
+        return JSON.stringify(this.plain, null, 2);
     }
 
-    importJSON(jsonString) {
-        const parsed = JSON.parse(jsonString);
-        this.state = {
+    importJSON(jsonStr) {
+        const parsed = JSON.parse(jsonStr);
+        this.plain = {
             ...DEFAULT_SETTINGS,
             ...parsed,
+            version: "0.0.4",
             plugins: { ...(parsed.plugins || {}) }
         };
         this.save();
     }
 
     wipeAll() {
-        try {
-            const backend = this._getStorageBackend();
-            backend.removeItem(STORAGE_KEY);
-            this.state = { ...DEFAULT_SETTINGS, plugins: {} };
-            this._emit();
-        } catch (err) {
-            console.error("[VencordForAndroid] Failed to wipe settings:", err);
-        }
+        const storage = this._getNativeStorage();
+        storage.removeItem(STORAGE_KEY);
+        this.plain = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+        this._notify("*");
     }
 }
-const Settings = new SettingsManager();
+const Settings = new SettingsStoreService();
+const SettingsStore = Settings;
+const PlainSettings = Settings.plain;
 
 // --- Module: src/core/Patcher.js ---
 /**
- * VencordForAndroid - Runtime Patcher & Discord Module Finder
- * Provides before/instead/after method patching and Metro/Webpack module lookup.
+ * VencordForAndroid v0.0.4 - Metro / Webpack Module Engine & Runtime Patcher
+ * Combines Vendicated/Vencord's patchWebpack.ts with Discord Android's Metro (__r / modules) lookup.
  */
 
-class PatcherManager {
+class PatcherAndModuleEngine {
     constructor() {
         this.patches = new Map();
+        this.declarativePatches = [];
+        this.waitSubscriptions = new Set();
+        this._commonCache = {};
+        this._hookModuleLoaders();
     }
 
+    // --- 1. Runtime Method Patching (before / instead / after) ---
     _patch(type, callerId, target, method, callback) {
         if (!target || typeof target[method] !== "function") {
             return () => {};
         }
 
-        const key = `${callerId}::${method}`;
         const original = target[method];
-
         const wrapped = function (...args) {
             if (type === "before") {
                 try {
-                    const replacementArgs = callback(args, this);
-                    if (Array.isArray(replacementArgs)) {
-                        return original.apply(this, replacementArgs);
+                    const newArgs = callback(args, this);
+                    if (Array.isArray(newArgs)) {
+                        return original.apply(this, newArgs);
                     }
                 } catch (err) {
-                    console.error(`[VencordForAndroid:Patcher] Error in before patch (${key}):`, err);
+                    console.error(`[VencordForAndroid:Patcher] Error in before patch (${callerId}.${method}):`, err);
                 }
                 return original.apply(this, args);
             }
@@ -220,39 +288,35 @@ class PatcherManager {
                 try {
                     return callback(args, original.bind(this), this);
                 } catch (err) {
-                    console.error(`[VencordForAndroid:Patcher] Error in instead patch (${key}):`, err);
+                    console.error(`[VencordForAndroid:Patcher] Error in instead patch (${callerId}.${method}):`, err);
                     return original.apply(this, args);
                 }
             }
 
-            // "after"
             const res = original.apply(this, args);
             try {
-                const modifiedRes = callback(args, res, this);
-                return modifiedRes !== undefined ? modifiedRes : res;
+                const modified = callback(args, res, this);
+                return modified !== undefined ? modified : res;
             } catch (err) {
-                console.error(`[VencordForAndroid:Patcher] Error in after patch (${key}):`, err);
+                console.error(`[VencordForAndroid:Patcher] Error in after patch (${callerId}.${method}):`, err);
                 return res;
             }
         };
 
+        wrapped.__vencordOriginal = original;
         target[method] = wrapped;
 
         const unpatch = () => {
             if (target[method] === wrapped) {
                 target[method] = original;
             }
-            const callerPatches = this.patches.get(callerId);
-            if (callerPatches) {
-                callerPatches.delete(unpatch);
-            }
+            this.patches.get(callerId)?.delete(unpatch);
         };
 
         if (!this.patches.has(callerId)) {
             this.patches.set(callerId, new Set());
         }
         this.patches.get(callerId).add(unpatch);
-
         return unpatch;
     }
 
@@ -272,9 +336,7 @@ class PatcherManager {
         if (callerId) {
             const set = this.patches.get(callerId);
             if (set) {
-                for (const unpatch of Array.from(set)) {
-                    unpatch();
-                }
+                for (const unpatch of Array.from(set)) unpatch();
                 this.patches.delete(callerId);
             }
             return;
@@ -284,102 +346,240 @@ class PatcherManager {
         }
     }
 
-    /**
-     * Metro / Webpack module search helper for Discord Android (React Native & WebView)
-     */
-    findByProps(...props) {
-        const modules = this._getAvailableModules();
-        for (const mod of modules) {
-            if (!mod) continue;
-            const candidate = mod.exports || mod;
-            if (candidate && props.every((p) => p in candidate)) {
-                return candidate;
-            }
-            if (candidate?.default && props.every((p) => p in candidate.default)) {
-                return candidate.default;
-            }
-        }
-        return null;
+    // --- 2. Vencord Declarative Patches (patches: [{ find, replacement: { match, replace } }]) ---
+    addDeclarativePatch(patchDef, pluginName) {
+        this.declarativePatches.push({
+            ...patchDef,
+            plugin: pluginName,
+            replacement: Array.isArray(patchDef.replacement) ? patchDef.replacement : [patchDef.replacement]
+        });
     }
 
-    findByName(displayName) {
-        const modules = this._getAvailableModules();
-        for (const mod of modules) {
-            const candidate = mod?.exports || mod;
-            if (!candidate) continue;
-            if (candidate.displayName === displayName || candidate.name === displayName) {
-                return candidate;
-            }
-            if (candidate.default && (candidate.default.displayName === displayName || candidate.default.name === displayName)) {
-                return candidate.default;
-            }
+    // --- 3. Discord Metro (React Native Android) & Webpack Module Discovery ---
+    _hookModuleLoaders() {
+        if (typeof globalThis === "undefined") return;
+
+        // Hook Discord Android React Native Metro require (__r) if present
+        if (typeof globalThis.__r === "function" && !globalThis.__r.__vencordHooked) {
+            const origRequire = globalThis.__r;
+            const self = this;
+            const hookedRequire = function (moduleId) {
+                const exports = origRequire.apply(this, arguments);
+                if (exports) {
+                    self._notifyWaiters(exports);
+                }
+                return exports;
+            };
+            hookedRequire.__vencordHooked = true;
+            Object.assign(hookedRequire, origRequire);
+            globalThis.__r = hookedRequire;
         }
-        return null;
     }
 
-    _getAvailableModules() {
+    _notifyWaiters(exports) {
+        if (this.waitSubscriptions.size === 0) return;
+        for (const sub of Array.from(this.waitSubscriptions)) {
+            try {
+                if (sub.filter(exports)) {
+                    this.waitSubscriptions.delete(sub);
+                    sub.callback(exports);
+                } else if (exports?.default && sub.filter(exports.default)) {
+                    this.waitSubscriptions.delete(sub);
+                    sub.callback(exports.default);
+                }
+            } catch (_) {}
+        }
+    }
+
+    _getModuleList() {
+        const list = [];
         try {
-            if (typeof globalThis !== "undefined" && globalThis.__r && globalThis.modules) {
-                return Object.values(globalThis.modules);
-            }
-            if (typeof window !== "undefined" && window.webpackChunkdiscord_app) {
-                const modules = [];
-                window.webpackChunkdiscord_app.push([
-                    [Symbol("VencordForAndroid")],
-                    {},
-                    (req) => {
-                        if (req?.c) {
-                            for (const m of Object.values(req.c)) {
-                                modules.push(m);
-                            }
-                        }
+            // 1. React Native Metro modules map (Discord Android com.discord)
+            if (typeof globalThis !== "undefined" && globalThis.modules) {
+                for (const key of Object.keys(globalThis.modules)) {
+                    const mod = globalThis.modules[key];
+                    if (mod?.publicModule?.exports) {
+                        list.push(mod.publicModule.exports);
+                    } else if (mod?.exports) {
+                        list.push(mod.exports);
                     }
-                ]);
-                window.webpackChunkdiscord_app.pop();
-                return modules;
+                }
             }
-        } catch (err) {
-            console.warn("[VencordForAndroid:Patcher] Module enumeration fallback:", err);
+            // 2. Webpack chunk cache (Discord Web / Desktop / Vendroid)
+            if (typeof window !== "undefined" && Array.isArray(window.webpackChunkdiscord_app)) {
+                let wpRequire = this._wpRequire;
+                if (!wpRequire) {
+                    window.webpackChunkdiscord_app.push([
+                        [Symbol("VencordForAndroid")],
+                        {},
+                        (req) => {
+                            wpRequire = req;
+                        }
+                    ]);
+                    window.webpackChunkdiscord_app.pop();
+                    this._wpRequire = wpRequire;
+                }
+                if (wpRequire?.c) {
+                    for (const mod of Object.values(wpRequire.c)) {
+                        if (mod?.exports) list.push(mod.exports);
+                    }
+                }
+            }
+        } catch (_) {}
+        return list;
+    }
+
+    find(filterFn) {
+        if (typeof filterFn !== "function") return null;
+        for (const exp of this._getModuleList()) {
+            if (!exp) continue;
+            try {
+                if (filterFn(exp)) return exp;
+                if (exp.default && filterFn(exp.default)) return exp.default;
+            } catch (_) {}
         }
-        return [];
+        return null;
+    }
+
+    findByProps(...props) {
+        return this.find((m) => (typeof m === "object" || typeof m === "function") && props.every((p) => p in m));
+    }
+
+    findByPropsLazy(...props) {
+        let cached = null;
+        const self = this;
+        return new Proxy(function () {}, {
+            get(_target, prop) {
+                if (!cached) cached = self.findByProps(...props);
+                return cached ? cached[prop] : undefined;
+            },
+            set(_target, prop, value) {
+                if (!cached) cached = self.findByProps(...props);
+                if (cached) cached[prop] = value;
+                return true;
+            }
+        });
+    }
+
+    findByName(name, defaultExport = true) {
+        const mod = this.find((m) => m && (m.displayName === name || m.name === name));
+        return mod;
+    }
+
+    findByStoreName(storeName) {
+        return this.find((m) => m && typeof m.getName === "function" && m.getName() === storeName);
+    }
+
+    findAssetId(assetName) {
+        const AssetsRegistry = this.findByProps("registerAsset", "getAssetByID");
+        if (!AssetsRegistry) return null;
+        for (let id = 1; id < 8000; id++) {
+            const asset = AssetsRegistry.getAssetByID(id);
+            if (!asset) continue;
+            if (asset.name === assetName) return id;
+        }
+        return null;
+    }
+
+    waitFor(filterOrProps, callback) {
+        const filter = Array.isArray(filterOrProps)
+            ? (m) => m && filterOrProps.every((p) => p in m)
+            : typeof filterOrProps === "string"
+                ? (m) => m && (filterOrProps in m || m.displayName === filterOrProps || m.name === filterOrProps)
+                : filterOrProps;
+
+        const existing = this.find(filter);
+        if (existing) {
+            callback(existing);
+            return;
+        }
+        this.waitSubscriptions.add({ filter, callback });
+    }
+
+    get Common() {
+        const self = this;
+        return {
+            get React() {
+                return self._commonCache.React || (self._commonCache.React = self.findByProps("createElement", "useState", "useEffect") || globalThis.React);
+            },
+            get ReactNative() {
+                return self._commonCache.ReactNative || (self._commonCache.ReactNative = self.findByProps("View", "Text", "ScrollView", "TouchableOpacity") || globalThis.ReactNative);
+            },
+            get FluxDispatcher() {
+                return self._commonCache.FluxDispatcher || (self._commonCache.FluxDispatcher = self.findByProps("_dispatch", "dispatch", "subscribe"));
+            },
+            get NavigationNative() {
+                return self._commonCache.NavigationNative || (self._commonCache.NavigationNative = self.findByProps("useNavigation", "NavigationContainer"));
+            },
+            get SettingsRouter() {
+                return self._commonCache.SettingsRouter || (self._commonCache.SettingsRouter = self.findByProps("open", "saveAccountChanges") || self.findByProps("openUserSettings"));
+            },
+            get Toasts() {
+                return self._commonCache.Toasts || (self._commonCache.Toasts = self.findByProps("open", "close", "show"));
+            },
+            get Clipboard() {
+                return self._commonCache.Clipboard || (self._commonCache.Clipboard = self.findByProps("setString", "getString") || self.findByProps("copy"));
+            }
+        };
     }
 }
-const Patcher = new PatcherManager();
+const Patcher = new PatcherAndModuleEngine();
+const Webpack = Patcher;
+const Metro = Patcher;
 
 // --- Module: src/core/PluginManager.js ---
 /**
- * VencordForAndroid - Plugin Manager (v0.0.3)
- * Handles registration, tags, options (cog wheel vs info icon), and lifecycle of official Vencord plugins on Android.
+ * VencordForAndroid v0.0.4 - PluginManager & Internal Plugin APIs
+ * Follows Vendicated/Vencord/src/api/PluginManager.ts (Flux events, MessageEventsAPI, CommandsAPI, Patches, Settings).
  */
+
+
+export { definePluginSettings, OptionType };
 function definePlugin(definition) {
-    const options = definition.options || {};
+    const options = definition.options || (definition.settings?.def) || {};
     return {
         name: definition.name,
         description: definition.description || "",
         authors: definition.authors || [{ name: "Vendicated" }, { name: "juli22292" }],
         tags: definition.tags || ["Utility"],
-        version: definition.version || "0.0.3",
+        version: definition.version || "0.0.4",
         required: Boolean(definition.required),
+        isDependency: Boolean(definition.isDependency),
+        dependencies: definition.dependencies || [],
         enabledByDefault: Boolean(definition.enabledByDefault || definition.required),
         hasSettings: Object.keys(options).length > 0,
         options,
+        settings: definition.settings || null,
         patches: definition.patches || [],
-        start: definition.start || (() => {}),
-        stop: definition.stop || (() => {})
+        flux: definition.flux || null,
+        commands: definition.commands || [],
+        onBeforeMessageSend: definition.onBeforeMessageSend || null,
+        onBeforeMessageEdit: definition.onBeforeMessageEdit || null,
+        start: definition.start || null,
+        stop: definition.stop || null,
+        started: false
     };
 }
 
 class PluginManagerService {
     constructor() {
+        this.plugins = {};
         this.registry = new Map();
         this.running = new Set();
+        this.fluxUnsubscribers = new Map();
+        this.preSendListeners = new Map();
+        this.preEditListeners = new Map();
+        this._messageEventsHooked = false;
     }
 
     register(plugin) {
-        if (!plugin || !plugin.name) {
-            throw new Error("Invalid plugin definition: missing name");
-        }
+        if (!plugin || !plugin.name) return;
+        this.plugins[plugin.name] = plugin;
         this.registry.set(plugin.name, plugin);
+
+        if (plugin.settings) {
+            plugin.settings.pluginName = plugin.name;
+        }
 
         const defaultOptions = {};
         if (plugin.options) {
@@ -396,8 +596,8 @@ class PluginManagerService {
 
     registerAll(pluginList) {
         const sorted = [...pluginList].sort((a, b) => a.name.localeCompare(b.name));
-        for (const plugin of sorted) {
-            this.register(plugin);
+        for (const p of sorted) {
+            this.register(p);
         }
     }
 
@@ -417,67 +617,176 @@ class PluginManagerService {
         return this.registry.get(name) || null;
     }
 
-    isEnabled(name) {
+    isPluginEnabled(name) {
         const plugin = this.getPlugin(name);
         if (!plugin) return false;
-        if (plugin.required) return true;
+        if (plugin.required || plugin.isDependency) return true;
         return Boolean(Settings.getPluginConfig(name).enabled);
     }
 
+    isEnabled(name) {
+        return this.isPluginEnabled(name);
+    }
+
+    _ensureMessageEventsHooked() {
+        if (this._messageEventsHooked) return;
+        const MessageActions = Patcher.findByProps("sendMessage", "editMessage");
+        if (!MessageActions) return;
+
+        this._messageEventsHooked = true;
+        Patcher.before("VencordMessageEventsAPI", MessageActions, "sendMessage", (args) => {
+            const [channelId, messageObj] = args;
+            if (messageObj && typeof messageObj === "object") {
+                for (const listener of this.preSendListeners.values()) {
+                    try {
+                        listener(channelId, messageObj);
+                    } catch (e) {
+                        console.error("[VencordForAndroid:MessageEventsAPI] PreSend listener error:", e);
+                    }
+                }
+            }
+            return args;
+        });
+
+        Patcher.before("VencordMessageEventsAPI", MessageActions, "editMessage", (args) => {
+            const [channelId, messageId, messageObj] = args;
+            if (messageObj && typeof messageObj === "object") {
+                for (const listener of this.preEditListeners.values()) {
+                    try {
+                        listener(channelId, messageId, messageObj);
+                    } catch (e) {
+                        console.error("[VencordForAndroid:MessageEventsAPI] PreEdit listener error:", e);
+                    }
+                }
+            }
+            return args;
+        });
+    }
+
+    initPluginManager() {
+        // Resolve dependencies and register declarative patches for enabled plugins
+        for (const plugin of this.registry.values()) {
+            if (!this.isPluginEnabled(plugin.name)) continue;
+
+            if (Array.isArray(plugin.dependencies)) {
+                for (const depName of plugin.dependencies) {
+                    const dep = this.getPlugin(depName);
+                    if (dep) {
+                        dep.isDependency = true;
+                        Settings.setPluginEnabled(depName, true);
+                    }
+                }
+            }
+
+            if (Array.isArray(plugin.patches)) {
+                for (const patch of plugin.patches) {
+                    Patcher.addDeclarativePatch(patch, plugin.name);
+                }
+            }
+        }
+    }
+
     startAllEnabled() {
+        this.initPluginManager();
+
         if (Settings.get("safeMode")) {
-            console.warn("[VencordForAndroid] Safe Mode is active; skipping non-required plugins.");
+            console.warn("[VencordForAndroid] Safe Mode active: starting required core plugins only.");
         }
 
         for (const plugin of this.registry.values()) {
-            const shouldStart = plugin.required || (!Settings.get("safeMode") && this.isEnabled(plugin.name));
+            const shouldStart = plugin.required || (!Settings.get("safeMode") && this.isPluginEnabled(plugin.name));
             if (shouldStart) {
                 this.startPlugin(plugin.name);
             }
         }
     }
 
-    startPlugin(name) {
-        const plugin = this.getPlugin(name);
-        if (!plugin || this.running.has(name)) return false;
+    startPlugin(nameOrPlugin) {
+        const plugin = typeof nameOrPlugin === "string" ? this.getPlugin(nameOrPlugin) : nameOrPlugin;
+        if (!plugin || this.running.has(plugin.name)) return false;
 
         try {
-            const cfg = Settings.getPluginConfig(name);
+            const cfg = Settings.getPluginConfig(plugin.name);
             const context = {
                 settings: cfg.options || {},
                 patcher: Patcher,
-                setOption: (k, v) => Settings.setPluginOption(name, k, v)
+                webpack: Patcher,
+                metro: Patcher,
+                setOption: (k, v) => Settings.setPluginOption(plugin.name, k, v)
             };
-            plugin.start(context);
-            this.running.add(name);
-            Settings.setPluginEnabled(name, true);
+
+            if (typeof plugin.start === "function") {
+                plugin.start(context);
+            }
+
+            // Auto-subscribe FluxDispatcher events like official Vencord
+            if (plugin.flux && typeof plugin.flux === "object") {
+                const FluxDispatcher = Patcher.Common.FluxDispatcher;
+                if (FluxDispatcher && typeof FluxDispatcher.subscribe === "function") {
+                    const unsubs = [];
+                    for (const [eventName, handler] of Object.entries(plugin.flux)) {
+                        if (typeof handler === "function") {
+                            const bound = handler.bind(plugin);
+                            FluxDispatcher.subscribe(eventName, bound);
+                            unsubs.push(() => FluxDispatcher.unsubscribe(eventName, bound));
+                        }
+                    }
+                    this.fluxUnsubscribers.set(plugin.name, unsubs);
+                }
+            }
+
+            if (typeof plugin.onBeforeMessageSend === "function") {
+                this._ensureMessageEventsHooked();
+                this.preSendListeners.set(plugin.name, plugin.onBeforeMessageSend.bind(plugin));
+            }
+
+            if (typeof plugin.onBeforeMessageEdit === "function") {
+                this._ensureMessageEventsHooked();
+                this.preEditListeners.set(plugin.name, plugin.onBeforeMessageEdit.bind(plugin));
+            }
+
+            plugin.started = true;
+            this.running.add(plugin.name);
+            Settings.setPluginEnabled(plugin.name, true);
             return true;
         } catch (err) {
-            console.error(`[VencordForAndroid] Error starting plugin "${name}":`, err);
+            console.error(`[VencordForAndroid:PluginManager] Failed to start ${plugin.name}:`, err);
             return false;
         }
     }
 
-    stopPlugin(name) {
-        const plugin = this.getPlugin(name);
+    stopPlugin(nameOrPlugin) {
+        const plugin = typeof nameOrPlugin === "string" ? this.getPlugin(nameOrPlugin) : nameOrPlugin;
         if (!plugin || plugin.required) return false;
 
         try {
-            if (this.running.has(name)) {
-                plugin.stop({ patcher: Patcher });
-                Patcher.unpatchAll(name);
-                this.running.delete(name);
+            if (this.running.has(plugin.name)) {
+                if (typeof plugin.stop === "function") {
+                    plugin.stop({ patcher: Patcher });
+                }
+                Patcher.unpatchAll(plugin.name);
+
+                const unsubs = this.fluxUnsubscribers.get(plugin.name);
+                if (unsubs) {
+                    for (const u of unsubs) u();
+                    this.fluxUnsubscribers.delete(plugin.name);
+                }
+
+                this.preSendListeners.delete(plugin.name);
+                this.preEditListeners.delete(plugin.name);
+                plugin.started = false;
+                this.running.delete(plugin.name);
             }
-            Settings.setPluginEnabled(name, false);
+            Settings.setPluginEnabled(plugin.name, false);
             return true;
         } catch (err) {
-            console.error(`[VencordForAndroid] Error stopping plugin "${name}":`, err);
+            console.error(`[VencordForAndroid:PluginManager] Failed to stop ${plugin.name}:`, err);
             return false;
         }
     }
 
     togglePlugin(name) {
-        if (this.isEnabled(name)) {
+        if (this.isPluginEnabled(name)) {
             return this.stopPlugin(name);
         }
         return this.startPlugin(name);
@@ -485,19 +794,27 @@ class PluginManagerService {
 
     stopAll() {
         for (const name of Array.from(this.running)) {
-            const plugin = this.getPlugin(name);
-            if (plugin) {
-                try {
-                    plugin.stop({ patcher: Patcher });
-                } catch (_) {}
+            const p = this.getPlugin(name);
+            if (p && !p.required) {
+                this.stopPlugin(name);
             }
-            Patcher.unpatchAll(name);
-            this.running.delete(name);
         }
     }
 
     uninstallAll() {
-        this.stopAll();
+        for (const name of Array.from(this.running)) {
+            const p = this.getPlugin(name);
+            if (p && typeof p.stop === "function") {
+                try {
+                    p.stop({ patcher: Patcher });
+                } catch (_) {}
+            }
+            Patcher.unpatchAll(name);
+        }
+        this.running.clear();
+        this.fluxUnsubscribers.clear();
+        this.preSendListeners.clear();
+        this.preEditListeners.clear();
         Patcher.unpatchAll();
         Settings.wipeAll();
         this.registry.clear();
@@ -507,26 +824,27 @@ const PluginManager = new PluginManagerService();
 
 // --- Module: src/core/Updater.js ---
 /**
- * VencordForAndroid - In-App Updater & Version Policy Enforcement
- * Checks and installs updates exclusively from https://github.com/juli22292/vencordforandroid
- * Blocks corrupted versions (0.0.1) and forces an immediate update to 0.0.2+.
+ * VencordForAndroid v0.0.4 - In-App Updater
+ * Follows Vendicated/Vencord/src/utils/updater.ts and Vencord/Vendroid/VencordUpdater.java
+ * Pulls updates exclusively from https://github.com/juli22292/vencordforandroid
  */
-const CORE_VERSION = "0.0.3";
-const MIN_REQUIRED_VERSION = "0.0.2";
-const CORRUPTED_VERSIONS = ["0.0.1"];
+const CORE_VERSION = "0.0.4";
+const MIN_REQUIRED_VERSION = "0.0.4";
+const CORRUPTED_VERSIONS = ["0.0.1", "0.0.2", "0.0.3"];
 const CORE_REPO = "juli22292/vencordforandroid";
 const INSTALLER_REPO = "juli22292/vencordandroidapp";
 const CORE_RELEASES_API = `https://api.github.com/repos/${CORE_REPO}/releases/latest`;
 const CORE_MANIFEST_URL = `https://raw.githubusercontent.com/${CORE_REPO}/main/dist/manifest.json`;
 const CORE_BUNDLE_URL = `https://raw.githubusercontent.com/${CORE_REPO}/main/dist/vencordforandroid.js`;
-const INSTALLER_LATEST_RELEASE_URL = `https://github.com/${INSTALLER_REPO}/releases/latest`;
 
 class UpdaterService {
     constructor() {
         this.lastCheck = null;
         this.latestVersion = CORE_VERSION;
+        this.latestHash = "main";
         this.updateAvailable = false;
-        this.forceUpdateRequired = false;
+        this.hasPendingRestart = false;
+        this.changes = [];
         this.corruptedVersions = [...CORRUPTED_VERSIONS];
         this.releaseNotes = "";
         this.downloadUrl = CORE_BUNDLE_URL;
@@ -555,40 +873,6 @@ class UpdaterService {
         return false;
     }
 
-    enforceVersionPolicy(hostInstallerVersion) {
-        if (hostInstallerVersion && this.isVersionCorrupted(hostInstallerVersion)) {
-            this.forceUpdateRequired = true;
-            this.renderCorruptedVersionLockScreen(hostInstallerVersion);
-            return false;
-        }
-        return true;
-    }
-
-    renderCorruptedVersionLockScreen(detectedVersion = "0.0.1") {
-        if (typeof document === "undefined") return;
-        let lock = document.getElementById("vfa-corrupted-lock");
-        if (!lock) {
-            lock = document.createElement("div");
-            lock.id = "vfa-corrupted-lock";
-            lock.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:#111214;color:#f2f3f5;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:sans-serif;";
-            document.body.appendChild(lock);
-        }
-        lock.innerHTML = `
-            <div style="background:#2b2d31;border:2px solid #da373c;border-radius:14px;padding:24px;max-width:420px;width:100%;">
-                <div style="background:#da373c;color:#fff;display:inline-block;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;margin-bottom:12px;">
-                    VERSION ${detectedVersion} BESCHÄDIGT & GESPERRT
-                </div>
-                <h2 style="margin:0 0 10px 0;font-size:20px;color:#fff;">Pflicht-Update auf v${CORE_VERSION} erforderlich</h2>
-                <p style="font-size:14px;color:#b5bac1;line-height:1.5;margin:0 0 18px 0;">
-                    Die installierte Version <b>v${detectedVersion}</b> ist als beschädigt markiert und wurde deaktiviert, da sie sich nicht direkt in die bestehende offizielle Discord-App integriert hat. Bitte aktualisiere jetzt auf <b>v${CORE_VERSION}</b>.
-                </p>
-                <a href="${INSTALLER_LATEST_RELEASE_URL}" style="display:block;background:#23a55a;color:#fff;text-decoration:none;padding:13px 18px;border-radius:8px;font-weight:700;font-size:15px;">
-                    Update v${CORE_VERSION} jetzt herunterladen
-                </a>
-            </div>
-        `;
-    }
-
     async checkForUpdates() {
         this.status = "checking";
         this.errorMessage = null;
@@ -598,7 +882,6 @@ class UpdaterService {
             let notes = "";
             let bundleUrl = CORE_BUNDLE_URL;
 
-            // Check manifest first for corrupted version policy
             try {
                 const manifestRes = await fetch(CORE_MANIFEST_URL, { cache: "no-store" });
                 if (manifestRes.ok) {
@@ -607,6 +890,7 @@ class UpdaterService {
                         this.corruptedVersions = manifest.corruptedVersions;
                     }
                     remoteVersion = manifest.version || CORE_VERSION;
+                    this.latestHash = (manifest.sha256 || "main").slice(0, 7);
                     notes = manifest.changelog || "";
                     bundleUrl = manifest.rawBundleUrl || CORE_BUNDLE_URL;
                 }
@@ -619,7 +903,7 @@ class UpdaterService {
             if (releaseRes.ok) {
                 const releaseData = await releaseRes.json();
                 remoteVersion = (releaseData.tag_name || releaseData.name || remoteVersion).replace(/^v/i, "");
-                notes = releaseData.body || notes || "Neues Update für VencordForAndroid und Plugins verfügbar.";
+                notes = releaseData.body || notes;
                 const asset = (releaseData.assets || []).find((a) => a.name === "vencordforandroid.js");
                 if (asset && asset.browser_download_url) {
                     bundleUrl = asset.browser_download_url;
@@ -636,15 +920,15 @@ class UpdaterService {
             return {
                 currentVersion: CORE_VERSION,
                 latestVersion: this.latestVersion,
+                latestHash: this.latestHash,
                 updateAvailable: this.updateAvailable,
-                corruptedVersions: this.corruptedVersions,
                 releaseNotes: this.releaseNotes,
                 downloadUrl: this.downloadUrl,
                 repository: CORE_REPO
             };
         } catch (err) {
             this.status = "error";
-            this.errorMessage = err?.message || "Verbindung zu GitHub fehlgeschlagen";
+            this.errorMessage = err?.message || "Failed to fetch updates from GitHub";
             return {
                 currentVersion: CORE_VERSION,
                 latestVersion: this.latestVersion,
@@ -660,13 +944,16 @@ class UpdaterService {
         try {
             const res = await fetch(this.downloadUrl, { cache: "no-store" });
             if (!res.ok) {
-                throw new Error(`Download fehlgeschlagen (HTTP ${res.status})`);
+                throw new Error(`HTTP ${res.status}`);
             }
             const bundleCode = await res.text();
 
             if (typeof globalThis !== "undefined") {
-                if (globalThis.__VENCORD_ANDROID_BRIDGE__?.saveBundleUpdate) {
-                    await globalThis.__VENCORD_ANDROID_BRIDGE__.saveBundleUpdate(bundleCode, this.latestVersion);
+                if (globalThis.__VENCORD_NATIVE_BRIDGE__?.saveBundleUpdate) {
+                    await globalThis.__VENCORD_NATIVE_BRIDGE__.saveBundleUpdate(bundleCode, this.latestVersion);
+                } else if (globalThis.mmkvStorage) {
+                    globalThis.mmkvStorage.set("VencordForAndroid_CachedBundle", bundleCode);
+                    globalThis.mmkvStorage.set("VencordForAndroid_CachedVersion", this.latestVersion);
                 } else if (globalThis.localStorage) {
                     globalThis.localStorage.setItem("VencordForAndroid_CachedBundle", bundleCode);
                     globalThis.localStorage.setItem("VencordForAndroid_CachedVersion", this.latestVersion);
@@ -675,6 +962,7 @@ class UpdaterService {
 
             Settings.set("version", this.latestVersion);
             this.updateAvailable = false;
+            this.hasPendingRestart = true;
             this.status = "up-to-date";
 
             return {
@@ -683,7 +971,7 @@ class UpdaterService {
             };
         } catch (err) {
             this.status = "error";
-            this.errorMessage = err?.message || "Update konnte nicht installiert werden";
+            this.errorMessage = err?.message || "Update installation failed";
             return {
                 success: false,
                 error: this.errorMessage
@@ -2576,1145 +2864,715 @@ const BUILTIN_PLUGINS = [
 
 // --- Module: src/ui/DiscordSettingsInjector.js ---
 /**
- * VencordForAndroid - Official Vencord Settings UI in Discord Settings (v0.0.3)
- * Replicates the exact official Vencord Settings section inside Discord Settings:
- * - Vencord (Einstellungen)
- * - Plugins (with Plugin Management box, Manage plugin UI elements, Search + Show All + Filter by Tags, 2-column grid, Cog wheel / Info icon & Blurple checkmark toggle)
- * - Themes
- * - Updater
- * - Cloud
- * - Backup & Restore
+ * VencordForAndroid v0.0.4 - Native Discord React Settings Integration
+ *
+ * Implements the exact settings injection architecture of:
+ * 1. Discord Android React Native (Metro):
+ *    Hooks `SETTING_RENDERER_CONFIG` + `createListModule.createList` + `SettingsOverviewScreen`
+ *    and renders pages using Discord's own `React.createElement` and `ReactNative` primitives.
+ * 2. Discord Web / Vendroid (Webpack):
+ *    Hooks `.buildLayout()` and `getPredicateSections` like `Vendicated/Vencord/src/plugins/_core/settings.tsx`
+ *    and renders the official Vencord tabs (`Vencord`, `Plugins`, `Themes`, `Updater`, `Cloud`, `Backup & Restore`)
+ *    directly inside Discord's native Settings view using Discord's own React instance.
  */
 
 
 
 
-const SVG_ICONS = {
-    vencord: `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>`,
-    plugins: `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg>`,
-    themes: `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>`,
-    updater: `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>`,
-    cloud: `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>`,
-    backup: `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>`,
-    cog: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>`,
-    info: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>`,
-    check: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5865f2" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
-    cross: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#72767d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
-    chevronRight: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`,
-    close: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
-    sidebar: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>`
-};
+const PLUGIN_TAGS = [
+    "All", "Appearance", "Chat", "Friends", "Guilds",
+    "Media", "Messages", "Notifications", "Privacy",
+    "Shortcuts", "Utility", "Voice"
+];
 class DiscordSettingsInjector {
     constructor() {
-        this.activeModalTab = "plugins"; // vencord | plugins | themes | updater | cloud | backup
-        this.searchQuery = "";
-        this.filterMode = "all"; // all | enabled | disabled
-        this.tagFilter = "all";
-        this.sidebarOpenMobile = false;
-        this.activePluginModal = null;
-        this.uiElementsModalOpen = false;
+        this.unpatches = [];
+        this.registeredSections = {};
     }
 
     init() {
-        this._patchReactNativeSettings();
-        if (typeof document !== "undefined") {
-            this._injectStylesAndObserver();
-        }
+        this._initReactNativeSettingsTabs();
+        this._initWebpackBuildLayoutSettings();
     }
 
-    _patchReactNativeSettings() {
-        try {
-            const SettingsOverview = Patcher.findByName("SettingsOverviewScreen") || Patcher.findByProps("useOverviewSettings");
-            if (SettingsOverview && typeof SettingsOverview.useOverviewSettings === "function") {
-                Patcher.after("VencordSettingsInjector", SettingsOverview, "useOverviewSettings", (_args, sections) => {
-                    if (!Array.isArray(sections)) return sections;
-                    if (sections.some((s) => s?.title === "Vencord Settings" || s?.title === "VencordForAndroid")) return sections;
+    // =========================================================================
+    // 1. NATIVE DISCORD ANDROID (REACT NATIVE / METRO) SETTINGS INJECTION
+    //    Matches revenge-bundle/src/lib/ui/settings/patches/tabs.tsx
+    // =========================================================================
+    _initReactNativeSettingsTabs() {
+        Patcher.waitFor(["SETTING_RENDERER_CONFIG"], (settingConstants) => {
+            try {
+                const createListModule = Patcher.findByProps("createList");
+                const TableRowMod = Patcher.findByProps("TableRow");
+                const TableRow = TableRowMod?.TableRow;
 
-                    const vencordSection = {
-                        title: "Vencord Settings",
-                        settings: [
-                            "VENCORD_SETTINGS_MAIN",
-                            "VENCORD_SETTINGS_PLUGINS",
-                            "VENCORD_SETTINGS_THEMES",
-                            "VENCORD_SETTINGS_UPDATER",
-                            "VENCORD_SETTINGS_CLOUD",
-                            "VENCORD_SETTINGS_BACKUP"
-                        ]
-                    };
-                    // Insert right before Billing / Nitro section if found, else after Account section
-                    const billingIdx = sections.findIndex((s) =>
-                        String(s?.title || "").toLowerCase().includes("billing") ||
-                        String(s?.title || "").toLowerCase().includes("zahlung")
-                    );
-                    if (billingIdx > 0) {
-                        const copy = [...sections];
-                        copy.splice(billingIdx, 0, vencordSection);
-                        return copy;
+                const rows = [
+                    {
+                        key: "VENCORD_MAIN",
+                        title: () => "Vencord",
+                        icon: Patcher.findAssetId("SettingsIcon") || Patcher.findAssetId("CogIcon"),
+                        useTrailing: () => `(v${CORE_VERSION})`,
+                        render: () => this._createReactNativeTabComponent("vencord")
+                    },
+                    {
+                        key: "VENCORD_PLUGINS",
+                        title: () => "Plugins",
+                        icon: Patcher.findAssetId("PuzzlePieceIcon"),
+                        render: () => this._createReactNativeTabComponent("plugins")
+                    },
+                    {
+                        key: "VENCORD_THEMES",
+                        title: () => "Themes",
+                        icon: Patcher.findAssetId("PaintPaletteIcon"),
+                        render: () => this._createReactNativeTabComponent("themes")
+                    },
+                    {
+                        key: "VENCORD_UPDATER",
+                        title: () => "Updater",
+                        icon: Patcher.findAssetId("DownloadIcon") || Patcher.findAssetId("CloudUploadIcon"),
+                        render: () => this._createReactNativeTabComponent("updater")
+                    },
+                    {
+                        key: "VENCORD_CLOUD",
+                        title: () => "Cloud",
+                        icon: Patcher.findAssetId("CloudIcon"),
+                        render: () => this._createReactNativeTabComponent("cloud")
+                    },
+                    {
+                        key: "VENCORD_BACKUP",
+                        title: () => "Backup & Restore",
+                        icon: Patcher.findAssetId("RetryIcon") || Patcher.findAssetId("RefreshIcon"),
+                        render: () => this._createReactNativeTabComponent("backup")
                     }
-                    return [sections[0], vencordSection, ...sections.slice(1)];
+                ];
+
+                const getRendererRows = () => {
+                    const map = {};
+                    for (const row of rows) {
+                        map[row.key] = {
+                            type: "pressable",
+                            useTitle: row.title,
+                            title: row.title,
+                            icon: row.icon,
+                            IconComponent: TableRow && row.icon
+                                ? () => Patcher.Common.React.createElement(TableRow.Icon, { source: row.icon })
+                                : undefined,
+                            useTrailing: row.useTrailing,
+                            onPress: () => this._navigateReactNativePage(row.title(), row.render()),
+                            withArrow: true
+                        };
+                    }
+                    return map;
+                };
+
+                let rendererConfigValue = settingConstants.SETTING_RENDERER_CONFIG;
+                const origConfig = rendererConfigValue;
+
+                Object.defineProperty(settingConstants, "SETTING_RENDERER_CONFIG", {
+                    enumerable: true,
+                    configurable: true,
+                    get: () => ({
+                        ...rendererConfigValue,
+                        VencordCustomPage: {
+                            type: "route",
+                            useTitle: () => "Vencord Settings",
+                            title: () => "Vencord Settings",
+                            screen: {
+                                route: "VencordCustomPage",
+                                getComponent: () => this._getReactNativePageWrapper()
+                            }
+                        },
+                        ...getRendererRows()
+                    }),
+                    set: (v) => {
+                        rendererConfigValue = v;
+                    }
                 });
-            }
-        } catch (err) {
-            console.warn("[VencordForAndroid] React Native settings hook skipped:", err);
-        }
-    }
 
-    _injectStylesAndObserver() {
-        if (document.getElementById("vencordforandroid-styles")) return;
+                this.unpatches.push(() => {
+                    Object.defineProperty(settingConstants, "SETTING_RENDERER_CONFIG", {
+                        value: origConfig,
+                        writable: true
+                    });
+                });
 
-        const style = document.createElement("style");
-        style.id = "vencordforandroid-styles";
-        style.textContent = `
-            .vfa-overlay {
-                position: fixed;
-                inset: 0;
-                background: #313338;
-                z-index: 999999;
-                display: flex;
-                font-family: "gg sans", "Noto Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-                color: #f2f3f5;
-                user-select: none;
-            }
-            .vfa-layout {
-                display: flex;
-                width: 100%;
-                height: 100%;
-                overflow: hidden;
-            }
-            /* Left Discord Settings Sidebar (1:1 like Screenshot) */
-            .vfa-sidebar {
-                width: 240px;
-                min-width: 240px;
-                background: #2b2d31;
-                display: flex;
-                flex-direction: column;
-                padding: 16px 8px 16px 14px;
-                overflow-y: auto;
-                border-right: 1px solid rgba(255, 255, 255, 0.04);
-            }
-            .vfa-sidebar-profile {
-                display: flex;
-                align-items: center;
-                gap: 12px;
-                padding: 6px 8px 14px 8px;
-            }
-            .vfa-avatar {
-                width: 40px;
-                height: 40px;
-                border-radius: 50%;
-                background: linear-gradient(135deg, #5865f2, #eb459e);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-weight: 800;
-                font-size: 16px;
-                color: #fff;
-            }
-            .vfa-profile-name {
-                font-size: 15px;
-                font-weight: 700;
-                color: #f2f3f5;
-            }
-            .vfa-profile-sub {
-                font-size: 12px;
-                color: #949ba4;
-            }
-            .vfa-sidebar-search {
-                background: #1e1f22;
-                border: none;
-                border-radius: 4px;
-                color: #dbdee1;
-                padding: 7px 10px;
-                font-size: 13px;
-                margin: 0 6px 12px 6px;
-            }
-            .vfa-nav-cat {
-                font-size: 12px;
-                font-weight: 700;
-                color: #949ba4;
-                padding: 12px 10px 4px 10px;
-            }
-            .vfa-nav-sep {
-                height: 1px;
-                background: #3f4147;
-                margin: 8px 10px;
-            }
-            .vfa-nav-item {
-                display: flex;
-                align-items: center;
-                gap: 12px;
-                padding: 7px 10px;
-                margin: 1px 4px;
-                border-radius: 4px;
-                font-size: 14px;
-                font-weight: 500;
-                color: #b5bac1;
-                cursor: pointer;
-                transition: background 0.12s, color 0.12s;
-            }
-            .vfa-nav-item:hover {
-                background: #35373c;
-                color: #dbdee1;
-            }
-            .vfa-nav-item.active {
-                background: #404249;
-                color: #ffffff;
-            }
-            .vfa-nav-item.muted {
-                opacity: 0.75;
-            }
-            /* Right Main Content Area */
-            .vfa-content-wrap {
-                flex: 1;
-                background: #313338;
-                display: flex;
-                flex-direction: column;
-                overflow: hidden;
-            }
-            .vfa-topbar {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                padding: 18px 24px 14px 24px;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-            }
-            .vfa-topbar-left {
-                display: flex;
-                align-items: center;
-                gap: 12px;
-            }
-            .vfa-mobile-menu-btn {
-                display: none;
-                background: #2b2d31;
-                border: 1px solid #3f4147;
-                color: #dbdee1;
-                border-radius: 6px;
-                padding: 6px 8px;
-                cursor: pointer;
-            }
-            .vfa-page-title {
-                font-size: 20px;
-                font-weight: 700;
-                color: #f2f3f5;
-                margin: 0;
-            }
-            .vfa-close-circle {
-                background: transparent;
-                border: 2px solid #b5bac1;
-                color: #b5bac1;
-                width: 34px;
-                height: 34px;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                cursor: pointer;
-            }
-            .vfa-close-circle:hover {
-                color: #fff;
-                border-color: #fff;
-            }
-            .vfa-scroll-area {
-                flex: 1;
-                overflow-y: auto;
-                padding: 20px 24px 60px 24px;
-                max-width: 820px;
-                width: 100%;
-                margin: 0 auto;
-            }
-            /* Vencord Info Boxes (Plugin Management & Manage UI elements) */
-            .vfa-info-box {
-                background: #2b2d31;
-                border: 1px solid #3f4147;
-                border-radius: 8px;
-                padding: 16px 18px;
-                margin-bottom: 14px;
-            }
-            .vfa-info-box.clickable {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                cursor: pointer;
-                transition: background 0.15s;
-            }
-            .vfa-info-box.clickable:hover {
-                background: #35373c;
-            }
-            .vfa-box-title {
-                font-size: 16px;
-                font-weight: 700;
-                color: #f2f3f5;
-                margin-bottom: 4px;
-            }
-            .vfa-box-sub {
-                font-size: 13px;
-                color: #b5bac1;
-                line-height: 1.45;
-            }
-            /* Filters Section */
-            .vfa-section-heading {
-                font-size: 16px;
-                font-weight: 700;
-                color: #f2f3f5;
-                margin: 22px 0 10px 0;
-            }
-            .vfa-search-input {
-                width: 100%;
-                box-sizing: border-box;
-                background: #1e1f22;
-                border: 1px solid #111214;
-                border-radius: 6px;
-                color: #dbdee1;
-                padding: 10px 12px;
-                font-size: 14px;
-                margin-bottom: 10px;
-                outline: none;
-            }
-            .vfa-search-input:focus {
-                border-color: #5865f2;
-            }
-            .vfa-filter-row {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 10px;
-                margin-bottom: 16px;
-            }
-            .vfa-select {
-                width: 100%;
-                background: #1e1f22;
-                border: 1px solid #111214;
-                border-radius: 6px;
-                color: #dbdee1;
-                padding: 10px 12px;
-                font-size: 14px;
-                outline: none;
-                cursor: pointer;
-            }
-            /* 2-Column Official Vencord Plugins Grid */
-            .vfa-plugins-grid {
-                display: grid;
-                grid-template-columns: repeat(2, 1fr);
-                gap: 12px;
-            }
-            @media (max-width: 640px) {
-                .vfa-plugins-grid {
-                    grid-template-columns: 1fr;
+                if (createListModule && typeof createListModule.createList === "function") {
+                    const unpatch = Patcher.after("VencordSettingsRN", createListModule, "createList", (args) => {
+                        const [config] = args;
+                        if (config?.sections && Array.isArray(config.sections)) {
+                            const sections = config.sections;
+                            if (sections.some((s) => s?.label === "Vencord Settings" || s?.title === "Vencord Settings")) {
+                                return;
+                            }
+                            const accountIdx = sections.findIndex((s) => Array.isArray(s?.settings) && s.settings.includes("ACCOUNT"));
+                            const insertIdx = accountIdx !== -1 ? accountIdx + 1 : 1;
+                            sections.splice(insertIdx, 0, {
+                                label: "Vencord Settings",
+                                title: "Vencord Settings",
+                                settings: rows.map((r) => r.key)
+                            });
+                        }
+                    });
+                    this.unpatches.push(unpatch);
                 }
-                .vfa-sidebar {
-                    position: absolute;
-                    left: 0;
-                    top: 0;
-                    bottom: 0;
-                    z-index: 20;
-                    transform: translateX(-100%);
-                    transition: transform 0.2s ease;
-                    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.6);
-                }
-                .vfa-sidebar.mobile-open {
-                    transform: translateX(0);
-                }
-                .vfa-mobile-menu-btn {
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                }
-                .vfa-scroll-area {
-                    padding: 14px 16px 60px 16px;
-                }
-                .vfa-topbar {
-                    padding: 14px 16px;
-                }
+            } catch (err) {
+                console.error("[VencordForAndroid] React Native settings registration error:", err);
             }
-            .vfa-plugin-card {
-                background: #2b2d31;
-                border: 1px solid rgba(255, 255, 255, 0.05);
-                border-radius: 8px;
-                padding: 14px 16px;
-                display: flex;
-                flex-direction: column;
-                justify-content: flex-start;
-                min-height: 92px;
-            }
-            .vfa-plugin-top {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 8px;
-                margin-bottom: 8px;
-            }
-            .vfa-plugin-title {
-                font-size: 15px;
-                font-weight: 700;
-                color: #f2f3f5;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
-            }
-            .vfa-plugin-controls {
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                flex-shrink: 0;
-            }
-            .vfa-icon-btn {
-                background: transparent;
-                border: none;
-                color: #b5bac1;
-                padding: 2px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                cursor: pointer;
-                transition: color 0.15s;
-            }
-            .vfa-icon-btn:hover {
-                color: #ffffff;
-            }
-            /* Official Vencord / Discord Toggle Switch with Checkmark / Cross */
-            .vfa-toggle {
-                position: relative;
-                width: 40px;
-                height: 24px;
-                background: #72767d;
-                border-radius: 14px;
-                border: none;
-                cursor: pointer;
-                padding: 0;
-                transition: background 0.18s ease;
-                display: flex;
-                align-items: center;
-            }
-            .vfa-toggle.checked {
-                background: #5865f2;
-            }
-            .vfa-toggle:disabled {
-                opacity: 0.5;
-                cursor: not-allowed;
-            }
-            .vfa-toggle-knob {
-                position: absolute;
-                top: 3px;
-                left: 3px;
-                width: 18px;
-                height: 18px;
-                background: #ffffff;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                transition: transform 0.18s ease;
-                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
-            }
-            .vfa-toggle.checked .vfa-toggle-knob {
-                transform: translateX(16px);
-            }
-            .vfa-plugin-desc {
-                font-size: 13px;
-                color: #b5bac1;
-                line-height: 1.4;
-            }
-            /* Plugin Settings / Info Sub-Modal */
-            .vfa-modal-backdrop {
-                position: fixed;
-                inset: 0;
-                background: rgba(0, 0, 0, 0.72);
-                z-index: 1000001;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 16px;
-            }
-            .vfa-modal-dialog {
-                background: #313338;
-                border: 1px solid #3f4147;
-                border-radius: 10px;
-                max-width: 500px;
-                width: 100%;
-                max-height: 85vh;
-                display: flex;
-                flex-direction: column;
-                overflow: hidden;
-                box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
-            }
-            .vfa-modal-head {
-                padding: 16px 20px;
-                background: #2b2d31;
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                border-bottom: 1px solid #3f4147;
-            }
-            .vfa-modal-body {
-                padding: 18px 20px;
-                overflow-y: auto;
-            }
-            .vfa-btn {
-                background: #5865f2;
-                color: #ffffff;
-                border: none;
-                border-radius: 4px;
-                padding: 10px 16px;
-                font-size: 14px;
-                font-weight: 600;
-                cursor: pointer;
-            }
-            .vfa-btn.green { background: #248046; }
-            .vfa-btn.danger { background: #da373c; }
-            .vfa-btn.secondary { background: #4e5058; }
-        `;
-        document.head.appendChild(style);
-
-        const observer = new MutationObserver(() => {
-            this._tryInjectSettingsSidebarSection();
         });
-        observer.observe(document.body, { childList: true, subtree: true });
     }
 
-    /**
-     * Injects the "Vencord Settings" section directly into Discord's settings sidebar
-     */
-    _tryInjectSettingsSidebarSection() {
-        if (document.getElementById("vfa-discord-settings-section")) return;
-        const navList = document.querySelector('[role="tablist"], [aria-label*="Settings"], [class*="sidebar"]');
-        if (!navList) return;
+    _navigateReactNativePage(title, PageComponent) {
+        const NavigationNative = Patcher.Common.NavigationNative;
+        this._currentRNPage = { title, PageComponent };
+        try {
+            const nav = NavigationNative?.useNavigation?.();
+            if (nav && typeof nav.push === "function") {
+                nav.push("VencordCustomPage", { title, render: PageComponent });
+            }
+        } catch (_) {}
+    }
 
-        const section = document.createElement("div");
-        section.id = "vfa-discord-settings-section";
-        section.style.cssText = "padding: 6px 0; margin-top: 6px; border-top: 1px solid #3f4147;";
+    _getReactNativePageWrapper() {
+        const React = Patcher.Common.React;
+        const self = this;
+        return function VencordCustomPageScreen(props) {
+            const routeParams = props?.route?.params || self._currentRNPage || {};
+            const Comp = routeParams.render || routeParams.PageComponent || self._createReactNativeTabComponent("plugins");
+            return React.createElement(Comp);
+        };
+    }
 
-        const header = document.createElement("div");
-        header.textContent = "Vencord Settings";
-        header.style.cssText = "font-size: 12px; font-weight: 700; color: #949ba4; padding: 6px 10px;";
-        section.appendChild(header);
+    _createReactNativeTabComponent(tabId) {
+        const React = Patcher.Common.React;
+        const RN = Patcher.Common.ReactNative;
+        if (!React || !RN) return () => null;
 
-        const items = [
-            { id: "vencord", label: "Vencord", icon: SVG_ICONS.vencord },
-            { id: "plugins", label: "Plugins", icon: SVG_ICONS.plugins },
-            { id: "themes", label: "Themes", icon: SVG_ICONS.themes },
-            { id: "updater", label: "Updater", icon: SVG_ICONS.updater },
-            { id: "cloud", label: "Cloud", icon: SVG_ICONS.cloud },
-            { id: "backup", label: "Backup & Restore", icon: SVG_ICONS.backup }
+        const { View, Text, ScrollView, TextInput, TouchableOpacity, Switch } = RN;
+
+        return function VencordRNSettingsScreen() {
+            const [search, setSearch] = React.useState("");
+            const [statusFilter, setStatusFilter] = React.useState("ALL");
+            const [tagFilter, setTagFilter] = React.useState("All");
+            const [selectedPlugin, setSelectedPlugin] = React.useState(null);
+            const [, forceUpdate] = React.useState(0);
+            const refresh = () => forceUpdate((n) => n + 1);
+
+            if (tabId === "updater") {
+                return React.createElement(
+                    ScrollView,
+                    { style: { flex: 1, backgroundColor: "#313338", padding: 16 } },
+                    React.createElement(
+                        View,
+                        { style: { backgroundColor: "#2b2d31", borderRadius: 8, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: "#3f4147" } },
+                        React.createElement(Text, { style: { color: "#f2f3f5", fontSize: 16, fontWeight: "700", marginBottom: 6 } }, "Repo"),
+                        React.createElement(Text, { style: { color: "#00a8fc", fontSize: 13 } }, `https://github.com/${CORE_REPO}`),
+                        React.createElement(Text, { style: { color: "#b5bac1", fontSize: 13, marginTop: 4 } }, `Installed: v${CORE_VERSION} • Latest: v${Updater.latestVersion}`)
+                    ),
+                    React.createElement(
+                        View,
+                        { style: { backgroundColor: "#2b2d31", borderRadius: 8, padding: 16, borderWidth: 1, borderColor: "#3f4147" } },
+                        React.createElement(Text, { style: { color: "#f2f3f5", fontSize: 16, fontWeight: "700", marginBottom: 6 } }, "Updates"),
+                        React.createElement(
+                            Text,
+                            { style: { color: "#b5bac1", fontSize: 13, marginBottom: 14 } },
+                            Updater.updateAvailable ? `New update v${Updater.latestVersion} is available!` : "Your Vencord is up to date!"
+                        ),
+                        React.createElement(
+                            View,
+                            { style: { flexDirection: "row", gap: 10 } },
+                            React.createElement(
+                                TouchableOpacity,
+                                {
+                                    style: { backgroundColor: "#5865f2", paddingVertical: 10, paddingHorizontal: 16, borderRadius: 6 },
+                                    onPress: async () => {
+                                        await Updater.checkForUpdates();
+                                        refresh();
+                                    }
+                                },
+                                React.createElement(Text, { style: { color: "#fff", fontWeight: "700" } }, "Check for Updates")
+                            ),
+                            Updater.updateAvailable ? React.createElement(
+                                TouchableOpacity,
+                                {
+                                    style: { backgroundColor: "#248046", paddingVertical: 10, paddingHorizontal: 16, borderRadius: 6 },
+                                    onPress: async () => {
+                                        await Updater.downloadAndApplyUpdate();
+                                        refresh();
+                                    }
+                                },
+                                React.createElement(Text, { style: { color: "#fff", fontWeight: "700" } }, "Update Now")
+                            ) : null
+                        )
+                    )
+                );
+            }
+
+            if (tabId === "vencord") {
+                const toggles = [
+                    { key: "autoUpdate", title: "Automatically check for updates", sub: "Checks for updates on startup" },
+                    { key: "autoUpdateNotification", title: "Get notified about new updates", sub: "Shows a toast when a new update is ready" },
+                    { key: "safeMode", title: "Safe Mode", sub: "Disables all optional plugins for recovery" },
+                    { key: "enableReactDevtools", title: "Enable React Developer Tools", sub: "Enables developer inspection hooks" }
+                ];
+                return React.createElement(
+                    ScrollView,
+                    { style: { flex: 1, backgroundColor: "#313338", padding: 16 } },
+                    toggles.map((item) =>
+                        React.createElement(
+                            View,
+                            {
+                                key: item.key,
+                                style: {
+                                    backgroundColor: "#2b2d31",
+                                    borderRadius: 8,
+                                    padding: 14,
+                                    marginBottom: 10,
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    justifyContent: "space-between"
+                                }
+                            },
+                            React.createElement(
+                                View,
+                                { style: { flex: 1, paddingRight: 12 } },
+                                React.createElement(Text, { style: { color: "#f2f3f5", fontSize: 15, fontWeight: "700" } }, item.title),
+                                React.createElement(Text, { style: { color: "#b5bac1", fontSize: 12, marginTop: 2 } }, item.sub)
+                            ),
+                            Switch ? React.createElement(Switch, {
+                                value: Boolean(Settings.get(item.key)),
+                                onValueChange: (val) => {
+                                    Settings.set(item.key, val);
+                                    refresh();
+                                }
+                            }) : null
+                        )
+                    )
+                );
+            }
+
+            // Default: Official Vencord Plugins Tab in React Native
+            const allPlugins = PluginManager.getAllPlugins().filter((p) => {
+                if (search) {
+                    const q = search.toLowerCase();
+                    if (!p.name.toLowerCase().includes(q) && !p.description.toLowerCase().includes(q)) return false;
+                }
+                if (statusFilter === "ENABLED" && !p.enabled) return false;
+                if (statusFilter === "DISABLED" && p.enabled) return false;
+                if (tagFilter !== "All" && !(p.tags || []).includes(tagFilter)) return false;
+                return true;
+            });
+
+            return React.createElement(
+                ScrollView,
+                { style: { flex: 1, backgroundColor: "#313338", padding: 16 } },
+                // Plugin Management Card
+                React.createElement(
+                    View,
+                    { style: { backgroundColor: "#2b2d31", borderRadius: 8, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: "#3f4147" } },
+                    React.createElement(Text, { style: { color: "#f2f3f5", fontSize: 16, fontWeight: "700", marginBottom: 4 } }, "Plugin Management"),
+                    React.createElement(Text, { style: { color: "#b5bac1", fontSize: 13 } }, "Press the cog wheel or info icon to get more info on a plugin\nPlugins with a cog wheel have settings you can modify!")
+                ),
+                // Filters
+                React.createElement(Text, { style: { color: "#f2f3f5", fontSize: 16, fontWeight: "700", marginTop: 8, marginBottom: 8 } }, "Filters"),
+                TextInput ? React.createElement(TextInput, {
+                    style: { backgroundColor: "#1e1f22", color: "#dbdee1", borderRadius: 6, padding: 10, marginBottom: 10 },
+                    placeholder: "Search for a plugin...",
+                    placeholderTextColor: "#949ba4",
+                    value: search,
+                    onChangeText: setSearch
+                }) : null,
+                React.createElement(
+                    View,
+                    { style: { flexDirection: "row", gap: 8, marginBottom: 16 } },
+                    ["ALL", "ENABLED", "DISABLED"].map((st) =>
+                        React.createElement(
+                            TouchableOpacity,
+                            {
+                                key: st,
+                                style: {
+                                    backgroundColor: statusFilter === st ? "#5865f2" : "#1e1f22",
+                                    paddingVertical: 8,
+                                    paddingHorizontal: 12,
+                                    borderRadius: 6
+                                },
+                                onPress: () => setStatusFilter(st)
+                            },
+                            React.createElement(Text, { style: { color: "#fff", fontSize: 12, fontWeight: "600" } }, st === "ALL" ? "Show All" : st === "ENABLED" ? "Show Enabled" : "Show Disabled")
+                        )
+                    )
+                ),
+                // Plugin Cards
+                React.createElement(Text, { style: { color: "#f2f3f5", fontSize: 16, fontWeight: "700", marginBottom: 10 } }, "Plugins"),
+                allPlugins.map((plugin) =>
+                    React.createElement(
+                        View,
+                        {
+                            key: plugin.name,
+                            style: {
+                                backgroundColor: "#2b2d31",
+                                borderRadius: 8,
+                                padding: 14,
+                                marginBottom: 10,
+                                borderWidth: 1,
+                                borderColor: "#3f4147"
+                            }
+                        },
+                        React.createElement(
+                            View,
+                            { style: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 } },
+                            React.createElement(Text, { style: { color: "#f2f3f5", fontSize: 15, fontWeight: "700" } }, plugin.name),
+                            React.createElement(
+                                View,
+                                { style: { flexDirection: "row", alignItems: "center", gap: 10 } },
+                                React.createElement(
+                                    TouchableOpacity,
+                                    { onPress: () => setSelectedPlugin(selectedPlugin === plugin.name ? null : plugin.name) },
+                                    React.createElement(Text, { style: { color: "#b5bac1", fontSize: 16 } }, plugin.hasSettings ? "⚙" : "ⓘ")
+                                ),
+                                Switch ? React.createElement(Switch, {
+                                    value: plugin.enabled,
+                                    disabled: plugin.required,
+                                    onValueChange: () => {
+                                        PluginManager.togglePlugin(plugin.name);
+                                        refresh();
+                                    }
+                                }) : null
+                            )
+                        ),
+                        React.createElement(Text, { style: { color: "#b5bac1", fontSize: 13 } }, plugin.description),
+                        selectedPlugin === plugin.name && plugin.hasSettings ? React.createElement(
+                            View,
+                            { style: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#3f4147" } },
+                            Object.entries(plugin.options).map(([optKey, optDef]) =>
+                                React.createElement(
+                                    View,
+                                    { key: optKey, style: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 6 } },
+                                    React.createElement(Text, { style: { color: "#dbdee1", fontSize: 12, flex: 1 } }, optDef.label || optKey),
+                                    optDef.type === "boolean" && Switch ? React.createElement(Switch, {
+                                        value: Boolean(plugin.optionValues[optKey] ?? optDef.default),
+                                        onValueChange: (val) => {
+                                            Settings.setPluginOption(plugin.name, optKey, val);
+                                            refresh();
+                                        }
+                                    }) : React.createElement(Text, { style: { color: "#5865f2", fontSize: 12, fontWeight: "700" } }, String(plugin.optionValues[optKey] ?? optDef.default))
+                                )
+                            )
+                        ) : null
+                    )
+                )
+            );
+        };
+    }
+
+    // =========================================================================
+    // 2. WEBPACK / VENDROID (.buildLayout() & getPredicateSections) INJECTION
+    //    Matches Vendicated/Vencord/src/plugins/_core/settings.tsx
+    // =========================================================================
+    _initWebpackBuildLayoutSettings() {
+        let LayoutTypes = {
+            SECTION: 1,
+            SIDEBAR_ITEM: 2,
+            PANEL: 3,
+            CATEGORY: 5,
+            CUSTOM: 19
+        };
+        Patcher.waitFor(["SECTION", "SIDEBAR_ITEM", "PANEL", "CUSTOM"], (v) => {
+            LayoutTypes = v;
+        });
+
+        // Declarative patch on .buildLayout() just like Vendicated/Vencord/src/plugins/_core/settings.tsx
+        Patcher.addDeclarativePatch({
+            find: ".buildLayout().map",
+            replacement: {
+                match: /(\i)\.buildLayout\(\)(?=\.map)/,
+                replace: "VencordForAndroid.UI.buildWebpackSettingsLayout($1)"
+            }
+        }, "Settings");
+    }
+
+    buildWebpackSettingsLayout(originalLayoutBuilder) {
+        const layout = originalLayoutBuilder.buildLayout();
+        if (originalLayoutBuilder.key !== "$Root") return layout;
+        if (!Array.isArray(layout)) return layout;
+        if (layout.some((s) => s?.key === "vencord_section")) return layout;
+
+        const React = Patcher.Common.React;
+        if (!React) return layout;
+
+        const buildEntry = ({ key, title, panelTitle = title, tabId }) => ({
+            key: `${key}_sidebar_item`,
+            type: 2, // SIDEBAR_ITEM
+            legacySearchKey: title.toUpperCase(),
+            getLegacySearchKey: () => title.toUpperCase(),
+            useTitle: () => title,
+            buildLayout: () => [
+                {
+                    key: `${key}_panel`,
+                    type: 3, // PANEL
+                    useTitle: () => panelTitle,
+                    buildLayout: () => [
+                        {
+                            key: `${key}_category`,
+                            type: 5, // CATEGORY
+                            buildLayout: () => [
+                                {
+                                    key: `${key}_custom`,
+                                    type: 19, // CUSTOM
+                                    Component: this._createWebReactTabComponent(tabId),
+                                    render: () => React.createElement(this._createWebReactTabComponent(tabId))
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        });
+
+        const vencordEntries = [
+            buildEntry({ key: "vencord_main", title: "Vencord", panelTitle: "Vencord Settings", tabId: "vencord" }),
+            buildEntry({ key: "vencord_plugins", title: "Plugins", tabId: "plugins" }),
+            buildEntry({ key: "vencord_themes", title: "Themes", tabId: "themes" }),
+            buildEntry({ key: "vencord_updater", title: "Updater", panelTitle: "Vencord Updater", tabId: "updater" }),
+            buildEntry({ key: "vencord_cloud", title: "Cloud", panelTitle: "Vencord Cloud", tabId: "cloud" }),
+            buildEntry({ key: "vencord_backup_restore", title: "Backup & Restore", tabId: "backup" })
         ];
 
-        for (const item of items) {
-            const row = document.createElement("div");
-            row.style.cssText = "display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:4px;color:#b5bac1;font-size:14px;font-weight:500;cursor:pointer;";
-            row.innerHTML = `${item.icon}<span>${item.label}</span>`;
-            row.addEventListener("click", () => this.openSettingsModal(item.id));
-            section.appendChild(row);
-        }
+        const vencordSection = {
+            key: "vencord_section",
+            type: 1, // SECTION
+            useTitle: () => "Vencord Settings",
+            buildLayout: () => vencordEntries
+        };
 
-        navList.appendChild(section);
+        let idx = layout.findIndex((s) => typeof s?.key === "string" && s.key === "billing_section");
+        if (idx === -1) idx = 2;
+        layout.splice(idx, 0, vencordSection);
+        return layout;
     }
 
-    openSettingsModal(initialTab = "plugins") {
-        if (initialTab === "settings") initialTab = "vencord";
-        this.activeModalTab = initialTab;
-        if (typeof document === "undefined") return;
+    _createWebReactTabComponent(tabId) {
+        const React = Patcher.Common.React;
+        return function VencordWebSettingsTab() {
+            const [search, setSearch] = React.useState("");
+            const [statusFilter, setStatusFilter] = React.useState("all");
+            const [tagFilter, setTagFilter] = React.useState("All");
+            const [modalPlugin, setModalPlugin] = React.useState(null);
+            const [, setTick] = React.useState(0);
+            const refresh = () => setTick((t) => t + 1);
 
-        let overlay = document.getElementById("vfa-settings-overlay");
-        if (!overlay) {
-            overlay = document.createElement("div");
-            overlay.id = "vfa-settings-overlay";
-            overlay.className = "vfa-overlay";
-            document.body.appendChild(overlay);
-        }
-        this._renderModalContent(overlay);
+            if (tabId === "updater") {
+                return React.createElement(
+                    "div",
+                    { style: { color: "#f2f3f5" } },
+                    React.createElement(
+                        "div",
+                        { style: { background: "#2b2d31", border: "1px solid #3f4147", borderRadius: 8, padding: 16, marginBottom: 14 } },
+                        React.createElement("div", { style: { fontWeight: 700, fontSize: 16, marginBottom: 6 } }, "Repo"),
+                        React.createElement("a", { href: `https://github.com/${CORE_REPO}`, target: "_blank", style: { color: "#00a8fc" } }, `https://github.com/${CORE_REPO}`),
+                        React.createElement("div", { style: { fontSize: 13, color: "#b5bac1", marginTop: 4 } }, `Installed: v${CORE_VERSION} • Latest: v${Updater.latestVersion}`)
+                    ),
+                    React.createElement(
+                        "div",
+                        { style: { background: "#2b2d31", border: "1px solid #3f4147", borderRadius: 8, padding: 16 } },
+                        React.createElement("div", { style: { fontWeight: 700, fontSize: 16, marginBottom: 6 } }, "Updates"),
+                        React.createElement("div", { style: { fontSize: 13, color: "#b5bac1", marginBottom: 12 } }, Updater.updateAvailable ? `New update v${Updater.latestVersion} available!` : "Your Vencord is up to date!"),
+                        React.createElement(
+                            "div",
+                            { style: { display: "flex", gap: 10 } },
+                            React.createElement("button", {
+                                style: { background: "#5865f2", color: "#fff", border: "none", borderRadius: 4, padding: "9px 16px", fontWeight: 600, cursor: "pointer" },
+                                onClick: async () => {
+                                    await Updater.checkForUpdates();
+                                    refresh();
+                                }
+                            }, "Check for Updates"),
+                            Updater.updateAvailable ? React.createElement("button", {
+                                style: { background: "#248046", color: "#fff", border: "none", borderRadius: 4, padding: "9px 16px", fontWeight: 600, cursor: "pointer" },
+                                onClick: async () => {
+                                    await Updater.downloadAndApplyUpdate();
+                                    refresh();
+                                }
+                            }, "Update Now") : null
+                        )
+                    )
+                );
+            }
+
+            // Official Plugins Tab rendered via Discord's React.createElement
+            const all = PluginManager.getAllPlugins().filter((p) => {
+                if (search) {
+                    const q = search.toLowerCase();
+                    if (!p.name.toLowerCase().includes(q) && !p.description.toLowerCase().includes(q)) return false;
+                }
+                if (statusFilter === "enabled" && !p.enabled) return false;
+                if (statusFilter === "disabled" && p.enabled) return false;
+                if (tagFilter !== "All" && !(p.tags || []).includes(tagFilter)) return false;
+                return true;
+            });
+
+            const regular = all.filter((p) => !p.required);
+            const required = all.filter((p) => p.required);
+
+            const renderPluginCard = (p) => React.createElement(
+                "div",
+                {
+                    key: p.name,
+                    style: {
+                        background: "#2b2d31",
+                        border: "1px solid rgba(255,255,255,0.06)",
+                        borderRadius: 8,
+                        padding: "14px 16px",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "flex-start"
+                    }
+                },
+                React.createElement(
+                    "div",
+                    { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 } },
+                    React.createElement("div", { style: { fontWeight: 700, fontSize: 15, color: "#f2f3f5" } }, p.name),
+                    React.createElement(
+                        "div",
+                        { style: { display: "flex", alignItems: "center", gap: 10 } },
+                        React.createElement(
+                            "button",
+                            {
+                                style: { background: "transparent", border: "none", color: "#b5bac1", cursor: "pointer", fontSize: 16 },
+                                onClick: () => setModalPlugin(modalPlugin === p.name ? null : p.name)
+                            },
+                            p.hasSettings ? "⚙" : "ⓘ"
+                        ),
+                        React.createElement(
+                            "button",
+                            {
+                                disabled: p.required,
+                                onClick: () => {
+                                    PluginManager.togglePlugin(p.name);
+                                    refresh();
+                                },
+                                style: {
+                                    width: 40,
+                                    height: 24,
+                                    borderRadius: 14,
+                                    border: "none",
+                                    background: p.enabled ? "#5865f2" : "#72767d",
+                                    position: "relative",
+                                    cursor: p.required ? "not-allowed" : "pointer",
+                                    opacity: p.required ? 0.5 : 1
+                                }
+                            },
+                            React.createElement(
+                                "span",
+                                {
+                                    style: {
+                                        position: "absolute",
+                                        top: 3,
+                                        left: p.enabled ? 19 : 3,
+                                        width: 18,
+                                        height: 18,
+                                        borderRadius: "50%",
+                                        background: "#fff",
+                                        color: p.enabled ? "#5865f2" : "#72767d",
+                                        fontSize: 11,
+                                        fontWeight: 800,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        transition: "left 0.15s ease"
+                                    }
+                                },
+                                p.enabled ? "✓" : "✕"
+                            )
+                        )
+                    )
+                ),
+                React.createElement("div", { style: { fontSize: 13, color: "#b5bac1", lineHeight: 1.4 } }, p.description)
+            );
+
+            return React.createElement(
+                "div",
+                { style: { color: "#f2f3f5" } },
+                React.createElement(
+                    "div",
+                    { style: { background: "#2b2d31", border: "1px solid #3f4147", borderRadius: 8, padding: "16px 18px", marginBottom: 14 } },
+                    React.createElement("div", { style: { fontSize: 16, fontWeight: 700, marginBottom: 4 } }, "Plugin Management"),
+                    React.createElement("div", { style: { fontSize: 13, color: "#b5bac1", lineHeight: 1.45 } }, "Press the cog wheel or info icon to get more info on a plugin\nPlugins with a cog wheel have settings you can modify!")
+                ),
+                React.createElement(
+                    "div",
+                    { style: { background: "#2b2d31", border: "1px solid #3f4147", borderRadius: 8, padding: "16px 18px", marginBottom: 18, display: "flex", alignItems: "center", justifyContent: "space-between" } },
+                    React.createElement(
+                        "div",
+                        null,
+                        React.createElement("div", { style: { fontSize: 16, fontWeight: 700, marginBottom: 4 } }, "Manage plugin UI elements"),
+                        React.createElement("div", { style: { fontSize: 13, color: "#b5bac1" } }, "Allows you to hide buttons you don't like")
+                    ),
+                    React.createElement("span", { style: { color: "#b5bac1", fontSize: 18 } }, "›")
+                ),
+                React.createElement("div", { style: { fontSize: 16, fontWeight: 700, marginBottom: 8 } }, "Filters"),
+                React.createElement("input", {
+                    type: "text",
+                    placeholder: "Search for a plugin...",
+                    value: search,
+                    onChange: (e) => setSearch(e.target.value),
+                    style: { width: "100%", boxSizing: "border-box", background: "#1e1f22", border: "1px solid #111214", borderRadius: 6, color: "#dbdee1", padding: "10px 12px", marginBottom: 10 }
+                }),
+                React.createElement(
+                    "div",
+                    { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 18 } },
+                    React.createElement(
+                        "select",
+                        {
+                            value: statusFilter,
+                            onChange: (e) => setStatusFilter(e.target.value),
+                            style: { background: "#1e1f22", border: "1px solid #111214", borderRadius: 6, color: "#dbdee1", padding: "10px 12px" }
+                        },
+                        React.createElement("option", { value: "all" }, "Show All"),
+                        React.createElement("option", { value: "enabled" }, "Show Enabled"),
+                        React.createElement("option", { value: "disabled" }, "Show Disabled")
+                    ),
+                    React.createElement(
+                        "select",
+                        {
+                            value: tagFilter,
+                            onChange: (e) => setTagFilter(e.target.value),
+                            style: { background: "#1e1f22", border: "1px solid #111214", borderRadius: 6, color: "#dbdee1", padding: "10px 12px" }
+                        },
+                        PLUGIN_TAGS.map((t) => React.createElement("option", { key: t, value: t }, t === "All" ? "Filter by Tags" : t))
+                    )
+                ),
+                React.createElement("div", { style: { fontSize: 16, fontWeight: 700, marginBottom: 10 } }, "Plugins"),
+                React.createElement(
+                    "div",
+                    { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 } },
+                    regular.map(renderPluginCard)
+                ),
+                React.createElement("div", { style: { fontSize: 16, fontWeight: 700, marginTop: 26, marginBottom: 10 } }, "Required Plugins"),
+                React.createElement(
+                    "div",
+                    { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 } },
+                    required.map(renderPluginCard)
+                )
+            );
+        };
     }
 
-    closeSettingsModal() {
-        const overlay = document.getElementById("vfa-settings-overlay");
-        if (overlay) overlay.remove();
-        if (typeof globalThis !== "undefined" && globalThis.__VENCORD_ANDROID_BRIDGE__?.closeOverlay) {
+    unpatchAll() {
+        for (const fn of this.unpatches) {
             try {
-                globalThis.__VENCORD_ANDROID_BRIDGE__.closeOverlay();
+                fn();
             } catch (_) {}
         }
-    }
-
-    _getTabTitle(tab) {
-        const titles = {
-            vencord: "Vencord",
-            plugins: "Plugins",
-            themes: "Themes",
-            updater: "Updater",
-            cloud: "Cloud",
-            backup: "Backup & Restore"
-        };
-        return titles[tab] || "Plugins";
-    }
-
-    _renderModalContent(overlay) {
-        const vencordItems = [
-            { id: "vencord", label: "Vencord", icon: SVG_ICONS.vencord },
-            { id: "plugins", label: "Plugins", icon: SVG_ICONS.plugins },
-            { id: "themes", label: "Themes", icon: SVG_ICONS.themes },
-            { id: "updater", label: "Updater", icon: SVG_ICONS.updater },
-            { id: "cloud", label: "Cloud", icon: SVG_ICONS.cloud },
-            { id: "backup", label: "Backup & Restore", icon: SVG_ICONS.backup }
-        ];
-
-        overlay.innerHTML = `
-            <div class="vfa-layout">
-                <!-- Left Discord Settings Sidebar matching screenshot -->
-                <div class="vfa-sidebar ${this.sidebarOpenMobile ? "mobile-open" : ""}" id="vfa-sidebar">
-                    <div class="vfa-sidebar-profile">
-                        <div class="vfa-avatar">V</div>
-                        <div>
-                            <div class="vfa-profile-name">Discord Android</div>
-                            <div class="vfa-profile-sub">Profile bearbeiten ✎</div>
-                        </div>
-                    </div>
-                    <input type="text" class="vfa-sidebar-search" placeholder="🔍 Suche" id="vfa-sidebar-quick-search" />
-
-                    <div class="vfa-nav-item muted" data-close-native="1">👤 <span>Account</span></div>
-                    <div class="vfa-nav-item muted" data-close-native="1">🛡️ <span>Daten &amp; Privatsphäre</span></div>
-                    <div class="vfa-nav-item muted" data-close-native="1">💬 <span>Berechtigungen für Nachrichten</span></div>
-                    <div class="vfa-nav-item muted" data-close-native="1">🔔 <span>Benachrichtigungen</span></div>
-
-                    <div class="vfa-nav-sep"></div>
-                    <div class="vfa-nav-cat">Vencord Settings</div>
-                    ${vencordItems.map((item) => `
-                        <div class="vfa-nav-item ${this.activeModalTab === item.id ? "active" : ""}" data-tab="${item.id}">
-                            ${item.icon}
-                            <span>${item.label}</span>
-                        </div>
-                    `).join("")}
-
-                    <div class="vfa-nav-sep"></div>
-                    <div class="vfa-nav-cat">Zahlungsabwicklung</div>
-                    <div class="vfa-nav-item muted" data-close-native="1">💎 <span>Nitro</span></div>
-                    <div class="vfa-nav-item muted" data-close-native="1">🚀 <span>Server-Boost</span></div>
-                    <div class="vfa-nav-item muted" data-close-native="1">🔄 <span>Abonnements</span></div>
-                    <div class="vfa-nav-item muted" data-close-native="1">🎁 <span>Geschenkinventar</span></div>
-                    <div class="vfa-nav-item muted" data-close-native="1">💳 <span>Zahlungsabwicklung</span></div>
-                </div>
-
-                <!-- Main Settings Page Content -->
-                <div class="vfa-content-wrap">
-                    <div class="vfa-topbar">
-                        <div class="vfa-topbar-left">
-                            <button class="vfa-mobile-menu-btn" id="vfa-mobile-menu-toggle" title="Discord Einstellungen Seitenleiste">
-                                ${SVG_ICONS.sidebar}
-                            </button>
-                            <h1 class="vfa-page-title">${this._getTabTitle(this.activeModalTab)}</h1>
-                        </div>
-                        <button class="vfa-close-circle" id="vfa-close-btn" title="Schließen">
-                            ${SVG_ICONS.close}
-                        </button>
-                    </div>
-                    <div class="vfa-scroll-area" id="vfa-tab-body"></div>
-                </div>
-            </div>
-        `;
-
-        overlay.querySelector("#vfa-close-btn").addEventListener("click", () => this.closeSettingsModal());
-        overlay.querySelector("#vfa-mobile-menu-toggle").addEventListener("click", () => {
-            this.sidebarOpenMobile = !this.sidebarOpenMobile;
-            const sb = overlay.querySelector("#vfa-sidebar");
-            if (sb) sb.classList.toggle("mobile-open", this.sidebarOpenMobile);
-        });
-
-        overlay.querySelectorAll(".vfa-nav-item[data-tab]").forEach((el) => {
-            el.addEventListener("click", () => {
-                this.activeModalTab = el.getAttribute("data-tab");
-                this.sidebarOpenMobile = false;
-                this._renderModalContent(overlay);
-            });
-        });
-
-        overlay.querySelectorAll(".vfa-nav-item[data-close-native]").forEach((el) => {
-            el.addEventListener("click", () => this.closeSettingsModal());
-        });
-
-        const body = overlay.querySelector("#vfa-tab-body");
-        if (this.activeModalTab === "plugins") {
-            this._renderPluginsTab(body, overlay);
-        } else if (this.activeModalTab === "vencord") {
-            this._renderVencordTab(body, overlay);
-        } else if (this.activeModalTab === "themes") {
-            this._renderThemesTab(body, overlay);
-        } else if (this.activeModalTab === "updater") {
-            this._renderUpdaterTab(body, overlay);
-        } else if (this.activeModalTab === "cloud") {
-            this._renderCloudTab(body, overlay);
-        } else if (this.activeModalTab === "backup") {
-            this._renderBackupTab(body, overlay);
-        }
-
-        if (this.activePluginModal) {
-            this._renderPluginDetailModal(overlay, this.activePluginModal);
-        }
-        if (this.uiElementsModalOpen) {
-            this._renderUiElementsModal(overlay);
-        }
-    }
-
-    _renderPluginsTab(container, overlay) {
-        const allTags = ["Appearance", "Chat", "Friends", "Guilds", "Media", "Messages", "Notifications", "Privacy", "Shortcuts", "Utility", "Voice"];
-
-        container.innerHTML = `
-            <!-- 1. Plugin Management Info Card (1:1 like Screenshot) -->
-            <div class="vfa-info-box">
-                <div class="vfa-box-title">Plugin Management</div>
-                <div class="vfa-box-sub">
-                    Press the cog wheel or info icon to get more info on a plugin<br/>
-                    Plugins with a cog wheel have settings you can modify!
-                </div>
-            </div>
-
-            <!-- 2. Manage plugin UI elements Card (1:1 like Screenshot) -->
-            <div class="vfa-info-box clickable" id="vfa-manage-ui-elements">
-                <div>
-                    <div class="vfa-box-title">Manage plugin UI elements</div>
-                    <div class="vfa-box-sub">Allows you to hide buttons you don't like</div>
-                </div>
-                <div style="color:#b5bac1;">${SVG_ICONS.chevronRight}</div>
-            </div>
-
-            <!-- 3. Filters Section (1:1 like Screenshot) -->
-            <div class="vfa-section-heading">Filters</div>
-            <input type="text" class="vfa-search-input" id="vfa-plugin-search" placeholder="Search for a plugin..." value="${this.searchQuery}" />
-            <div class="vfa-filter-row">
-                <select class="vfa-select" id="vfa-filter-status">
-                    <option value="all" ${this.filterMode === "all" ? "selected" : ""}>Show All</option>
-                    <option value="enabled" ${this.filterMode === "enabled" ? "selected" : ""}>Show Enabled</option>
-                    <option value="disabled" ${this.filterMode === "disabled" ? "selected" : ""}>Show Disabled</option>
-                </select>
-                <select class="vfa-select" id="vfa-filter-tags">
-                    <option value="all" ${this.tagFilter === "all" ? "selected" : ""}>Filter by Tags</option>
-                    ${allTags.map((t) => `<option value="${t}" ${this.tagFilter === t ? "selected" : ""}>${t}</option>`).join("")}
-                </select>
-            </div>
-
-            <!-- 4. Plugins 2-Column Grid -->
-            <div class="vfa-section-heading">Plugins</div>
-            <div class="vfa-plugins-grid" id="vfa-plugin-grid"></div>
-
-            <!-- 5. Required Plugins Grid -->
-            <div class="vfa-section-heading" style="margin-top:28px;">Required Plugins</div>
-            <div class="vfa-plugins-grid" id="vfa-required-plugin-grid"></div>
-        `;
-
-        container.querySelector("#vfa-manage-ui-elements").addEventListener("click", () => {
-            this.uiElementsModalOpen = true;
-            this._renderModalContent(overlay);
-        });
-
-        const searchInput = container.querySelector("#vfa-plugin-search");
-        searchInput.addEventListener("input", (e) => {
-            this.searchQuery = e.target.value;
-            this._populatePluginCards(container, overlay);
-        });
-
-        container.querySelector("#vfa-filter-status").addEventListener("change", (e) => {
-            this.filterMode = e.target.value;
-            this._populatePluginCards(container, overlay);
-        });
-
-        container.querySelector("#vfa-filter-tags").addEventListener("change", (e) => {
-            this.tagFilter = e.target.value;
-            this._populatePluginCards(container, overlay);
-        });
-
-        this._populatePluginCards(container, overlay);
-    }
-
-    _populatePluginCards(container, overlay) {
-        const all = PluginManager.getAllPlugins().filter((p) => {
-            if (this.searchQuery) {
-                const q = this.searchQuery.toLowerCase();
-                if (!p.name.toLowerCase().includes(q) && !p.description.toLowerCase().includes(q)) {
-                    return false;
-                }
-            }
-            if (this.filterMode === "enabled" && !p.enabled) return false;
-            if (this.filterMode === "disabled" && p.enabled) return false;
-            if (this.tagFilter !== "all" && !(p.tags || []).includes(this.tagFilter)) return false;
-            return true;
-        });
-
-        const regularPlugins = all.filter((p) => !p.required);
-        const requiredPlugins = all.filter((p) => p.required);
-
-        const grid = container.querySelector("#vfa-plugin-grid");
-        const reqGrid = container.querySelector("#vfa-required-plugin-grid");
-        grid.innerHTML = "";
-        reqGrid.innerHTML = "";
-
-        const createCard = (plugin) => {
-            const card = document.createElement("div");
-            card.className = "vfa-plugin-card";
-            const iconSvg = plugin.hasSettings ? SVG_ICONS.cog : SVG_ICONS.info;
-            const knobIcon = plugin.enabled ? SVG_ICONS.check : SVG_ICONS.cross;
-
-            card.innerHTML = `
-                <div class="vfa-plugin-top">
-                    <div class="vfa-plugin-title" title="${plugin.name}">${plugin.name}</div>
-                    <div class="vfa-plugin-controls">
-                        <button class="vfa-icon-btn" data-info="${plugin.name}" title="${plugin.hasSettings ? "Plugin Settings" : "Plugin Info"}">
-                            ${iconSvg}
-                        </button>
-                        <button class="vfa-toggle ${plugin.enabled ? "checked" : ""}" ${plugin.required ? "disabled" : ""} data-toggle="${plugin.name}">
-                            <span class="vfa-toggle-knob">${knobIcon}</span>
-                        </button>
-                    </div>
-                </div>
-                <div class="vfa-plugin-desc">${plugin.description}</div>
-            `;
-
-            card.querySelector("[data-info]").addEventListener("click", () => {
-                this.activePluginModal = plugin.name;
-                this._renderModalContent(overlay);
-            });
-
-            if (!plugin.required) {
-                card.querySelector("[data-toggle]").addEventListener("click", () => {
-                    PluginManager.togglePlugin(plugin.name);
-                    this._populatePluginCards(container, overlay);
-                });
-            }
-            return card;
-        };
-
-        for (const p of regularPlugins) {
-            grid.appendChild(createCard(p));
-        }
-        for (const p of requiredPlugins) {
-            reqGrid.appendChild(createCard(p));
-        }
-    }
-
-    _renderPluginDetailModal(overlay, pluginName) {
-        const plugin = PluginManager.getAllPlugins().find((p) => p.name === pluginName);
-        if (!plugin) return;
-
-        const backdrop = document.createElement("div");
-        backdrop.className = "vfa-modal-backdrop";
-
-        const optionEntries = Object.entries(plugin.options || {});
-        const authorsText = (plugin.authors || []).map((a) => a.name).join(", ");
-        const tagsText = (plugin.tags || []).join(" • ");
-
-        backdrop.innerHTML = `
-            <div class="vfa-modal-dialog">
-                <div class="vfa-modal-head">
-                    <div>
-                        <div style="font-size:18px;font-weight:700;color:#fff;">${plugin.name}</div>
-                        <div style="font-size:12px;color:#949ba4;">by ${authorsText} ${tagsText ? `• ${tagsText}` : ""}</div>
-                    </div>
-                    <button class="vfa-icon-btn" id="vfa-close-plugin-modal">${SVG_ICONS.close}</button>
-                </div>
-                <div class="vfa-modal-body">
-                    <div style="font-size:14px;color:#dbdee1;line-height:1.5;margin-bottom:16px;">
-                        ${plugin.description}
-                    </div>
-                    <div style="font-size:14px;font-weight:700;color:#f2f3f5;margin-bottom:10px;border-top:1px solid #3f4147;padding-top:14px;">
-                        ${optionEntries.length > 0 ? "Settings" : "No configurable settings for this plugin."}
-                    </div>
-                    <div id="vfa-plugin-options-list"></div>
-                </div>
-            </div>
-        `;
-
-        const optsContainer = backdrop.querySelector("#vfa-plugin-options-list");
-        for (const [optKey, optDef] of optionEntries) {
-            const currentVal = plugin.optionValues[optKey] !== undefined ? plugin.optionValues[optKey] : optDef.default;
-            const row = document.createElement("div");
-            row.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05);";
-
-            if (optDef.type === "boolean") {
-                const isOn = Boolean(currentVal);
-                row.innerHTML = `
-                    <div style="font-size:13px;color:#dbdee1;">${optDef.label || optKey}</div>
-                    <button class="vfa-toggle ${isOn ? "checked" : ""}">
-                        <span class="vfa-toggle-knob">${isOn ? SVG_ICONS.check : SVG_ICONS.cross}</span>
-                    </button>
-                `;
-                row.querySelector(".vfa-toggle").addEventListener("click", () => {
-                    Settings.setPluginOption(plugin.name, optKey, !isOn);
-                    this._renderModalContent(overlay);
-                });
-            } else if (optDef.type === "select") {
-                row.innerHTML = `
-                    <div style="font-size:13px;color:#dbdee1;">${optDef.label || optKey}</div>
-                    <select class="vfa-select" style="width:auto;min-width:140px;padding:6px 10px;">
-                        ${(optDef.choices || []).map((c) => `<option value="${c}" ${String(currentVal) === String(c) ? "selected" : ""}>${c}</option>`).join("")}
-                    </select>
-                `;
-                row.querySelector("select").addEventListener("change", (e) => {
-                    Settings.setPluginOption(plugin.name, optKey, e.target.value);
-                });
-            }
-            optsContainer.appendChild(row);
-        }
-
-        backdrop.querySelector("#vfa-close-plugin-modal").addEventListener("click", () => {
-            this.activePluginModal = null;
-            this._renderModalContent(overlay);
-        });
-        backdrop.addEventListener("click", (e) => {
-            if (e.target === backdrop) {
-                this.activePluginModal = null;
-                this._renderModalContent(overlay);
-            }
-        });
-
-        overlay.appendChild(backdrop);
-    }
-
-    _renderUiElementsModal(overlay) {
-        const uiCfg = Settings.get("uiElements") || { chatBarButtons: true, messagePopoverButtons: true };
-        const backdrop = document.createElement("div");
-        backdrop.className = "vfa-modal-backdrop";
-
-        backdrop.innerHTML = `
-            <div class="vfa-modal-dialog">
-                <div class="vfa-modal-head">
-                    <div style="font-size:18px;font-weight:700;color:#fff;">Manage plugin UI elements</div>
-                    <button class="vfa-icon-btn" id="vfa-close-ui-modal">${SVG_ICONS.close}</button>
-                </div>
-                <div class="vfa-modal-body">
-                    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #3f4147;">
-                        <div>
-                            <div style="font-size:14px;font-weight:600;color:#fff;">Chatbar Buttons</div>
-                            <div style="font-size:12px;color:#b5bac1;">Show plugin quick-action icons (Translate, SilentTyping, SendTimestamps) in the chat bar</div>
-                        </div>
-                        <button class="vfa-toggle ${uiCfg.chatBarButtons ? "checked" : ""}" id="vfa-toggle-chatbar">
-                            <span class="vfa-toggle-knob">${uiCfg.chatBarButtons ? SVG_ICONS.check : SVG_ICONS.cross}</span>
-                        </button>
-                    </div>
-                    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;">
-                        <div>
-                            <div style="font-size:14px;font-weight:600;color:#fff;">Message Popover Buttons</div>
-                            <div style="font-size:12px;color:#b5bac1;">Show plugin buttons in message long-press and hover menus</div>
-                        </div>
-                        <button class="vfa-toggle ${uiCfg.messagePopoverButtons ? "checked" : ""}" id="vfa-toggle-popover">
-                            <span class="vfa-toggle-knob">${uiCfg.messagePopoverButtons ? SVG_ICONS.check : SVG_ICONS.cross}</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        backdrop.querySelector("#vfa-toggle-chatbar").addEventListener("click", () => {
-            Settings.set("uiElements", { ...uiCfg, chatBarButtons: !uiCfg.chatBarButtons });
-            this._renderModalContent(overlay);
-        });
-        backdrop.querySelector("#vfa-toggle-popover").addEventListener("click", () => {
-            Settings.set("uiElements", { ...uiCfg, messagePopoverButtons: !uiCfg.messagePopoverButtons });
-            this._renderModalContent(overlay);
-        });
-        backdrop.querySelector("#vfa-close-ui-modal").addEventListener("click", () => {
-            this.uiElementsModalOpen = false;
-            this._renderModalContent(overlay);
-        });
-        overlay.appendChild(backdrop);
-    }
-
-    _renderVencordTab(container, overlay) {
-        const autoUpdate = Settings.get("autoUpdateCheck");
-        const notifyOnUpdates = Settings.get("notifyOnUpdates");
-        const safeMode = Settings.get("safeMode");
-        const devMode = Settings.get("developerMode");
-
-        container.innerHTML = `
-            <div class="vfa-info-box">
-                <div class="vfa-box-title">Quick Actions</div>
-                <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;">
-                    <button class="vfa-btn" id="vfa-qa-quickcss">Open QuickCSS File</button>
-                    <button class="vfa-btn secondary" id="vfa-qa-plugins">Manage Plugins</button>
-                    <button class="vfa-btn danger" id="vfa-qa-reset">Reset Vencord</button>
-                </div>
-            </div>
-
-            <div class="vfa-section-heading">Settings</div>
-            <div class="vfa-info-box" style="display:flex;flex-direction:column;gap:16px;">
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-                    <div>
-                        <div class="vfa-box-title" style="font-size:15px;">Automatically check for updates</div>
-                        <div class="vfa-box-sub">Checks for new VencordForAndroid &amp; Plugin updates on Discord startup (${CORE_REPO})</div>
-                    </div>
-                    <button class="vfa-toggle ${autoUpdate ? "checked" : ""}" id="vfa-toggle-autoupdate">
-                        <span class="vfa-toggle-knob">${autoUpdate ? SVG_ICONS.check : SVG_ICONS.cross}</span>
-                    </button>
-                </div>
-
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-                    <div>
-                        <div class="vfa-box-title" style="font-size:15px;">Get notified about new updates</div>
-                        <div class="vfa-box-sub">Shows an in-app alert whenever a new version is available</div>
-                    </div>
-                    <button class="vfa-toggle ${notifyOnUpdates ? "checked" : ""}" id="vfa-toggle-notify">
-                        <span class="vfa-toggle-knob">${notifyOnUpdates ? SVG_ICONS.check : SVG_ICONS.cross}</span>
-                    </button>
-                </div>
-
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-                    <div>
-                        <div class="vfa-box-title" style="font-size:15px;">Safe Mode (Disable non-required plugins)</div>
-                        <div class="vfa-box-sub">Temporarily disables optional plugins for troubleshooting</div>
-                    </div>
-                    <button class="vfa-toggle ${safeMode ? "checked" : ""}" id="vfa-toggle-safemode">
-                        <span class="vfa-toggle-knob">${safeMode ? SVG_ICONS.check : SVG_ICONS.cross}</span>
-                    </button>
-                </div>
-
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-                    <div>
-                        <div class="vfa-box-title" style="font-size:15px;">Enable Developer Tools</div>
-                        <div class="vfa-box-sub">Enables React Native / Metro module inspection and debug logging</div>
-                    </div>
-                    <button class="vfa-toggle ${devMode ? "checked" : ""}" id="vfa-toggle-devmode">
-                        <span class="vfa-toggle-knob">${devMode ? SVG_ICONS.check : SVG_ICONS.cross}</span>
-                    </button>
-                </div>
-            </div>
-        `;
-
-        container.querySelector("#vfa-qa-quickcss").addEventListener("click", () => {
-            this.activeModalTab = "themes";
-            this._renderModalContent(overlay);
-        });
-        container.querySelector("#vfa-qa-plugins").addEventListener("click", () => {
-            this.activeModalTab = "plugins";
-            this._renderModalContent(overlay);
-        });
-        container.querySelector("#vfa-qa-reset").addEventListener("click", () => {
-            PluginManager.stopAll();
-            Settings.wipeAll();
-            PluginManager.startAllEnabled();
-            this._renderModalContent(overlay);
-        });
-
-        container.querySelector("#vfa-toggle-autoupdate").addEventListener("click", () => {
-            Settings.set("autoUpdateCheck", !autoUpdate);
-            this._renderModalContent(overlay);
-        });
-        container.querySelector("#vfa-toggle-notify").addEventListener("click", () => {
-            Settings.set("notifyOnUpdates", !notifyOnUpdates);
-            this._renderModalContent(overlay);
-        });
-        container.querySelector("#vfa-toggle-safemode").addEventListener("click", () => {
-            Settings.set("safeMode", !safeMode);
-            this._renderModalContent(overlay);
-        });
-        container.querySelector("#vfa-toggle-devmode").addEventListener("click", () => {
-            Settings.set("developerMode", !devMode);
-            this._renderModalContent(overlay);
-        });
-    }
-
-    _renderThemesTab(container) {
-        const quickCss = Settings.get("quickCss") || "";
-        container.innerHTML = `
-            <div class="vfa-info-box">
-                <div class="vfa-box-title">QuickCSS &amp; Online Themes</div>
-                <div class="vfa-box-sub">Paste custom Discord CSS rules or @import links below to style Discord Mobile.</div>
-                <textarea id="vfa-quickcss-input" style="width:100%;height:200px;margin-top:12px;background:#1e1f22;color:#dbdee1;border:1px solid #111214;border-radius:6px;padding:12px;font-family:monospace;font-size:13px;" placeholder="/* Custom QuickCSS */">${quickCss}</textarea>
-                <div style="margin-top:10px;">
-                    <button class="vfa-btn green" id="vfa-save-css">Save QuickCSS</button>
-                </div>
-            </div>
-        `;
-        container.querySelector("#vfa-save-css").addEventListener("click", () => {
-            const val = container.querySelector("#vfa-quickcss-input").value;
-            Settings.set("quickCss", val);
-        });
-    }
-
-    _renderUpdaterTab(container, overlay) {
-        container.innerHTML = `
-            <div class="vfa-info-box">
-                <div class="vfa-box-title">Repo</div>
-                <div class="vfa-box-sub">
-                    <a href="https://github.com/${CORE_REPO}" target="_blank" style="color:#00a8fc;text-decoration:none;">https://github.com/${CORE_REPO}</a>
-                    (Installed: <b>v${CORE_VERSION}</b> • Latest: <b>v${Updater.latestVersion}</b>)
-                </div>
-            </div>
-
-            <div class="vfa-info-box">
-                <div class="vfa-box-title">Updates</div>
-                <div class="vfa-box-sub" id="vfa-updater-status">
-                    ${Updater.updateAvailable ? `New update v${Updater.latestVersion} is available!` : "Your VencordForAndroid is up to date!"}
-                    ${Updater.errorMessage ? `<br/><span style="color:#da373c;">${Updater.errorMessage}</span>` : ""}
-                </div>
-                <div style="margin-top:14px;display:flex;gap:10px;">
-                    <button class="vfa-btn" id="vfa-check-update-btn">Check for Updates</button>
-                    ${Updater.updateAvailable ? `<button class="vfa-btn green" id="vfa-install-update-btn">Update Now</button>` : ""}
-                </div>
-            </div>
-        `;
-
-        container.querySelector("#vfa-check-update-btn").addEventListener("click", async () => {
-            const statusEl = container.querySelector("#vfa-updater-status");
-            statusEl.textContent = "Checking for updates on GitHub...";
-            await Updater.checkForUpdates();
-            this._renderModalContent(overlay);
-        });
-
-        const installBtn = container.querySelector("#vfa-install-update-btn");
-        if (installBtn) {
-            installBtn.addEventListener("click", async () => {
-                installBtn.disabled = true;
-                installBtn.textContent = "Installing Update...";
-                await Updater.downloadAndApplyUpdate();
-                this._renderModalContent(overlay);
-            });
-        }
-    }
-
-    _renderCloudTab(container) {
-        container.innerHTML = `
-            <div class="vfa-info-box">
-                <div class="vfa-box-title">Vencord Cloud</div>
-                <div class="vfa-box-sub">
-                    Synchronize your enabled plugins and settings across devices securely.
-                </div>
-            </div>
-        `;
-    }
-
-    _renderBackupTab(container, overlay) {
-        container.innerHTML = `
-            <div class="vfa-info-box">
-                <div class="vfa-box-title">Backup &amp; Restore Settings</div>
-                <div class="vfa-box-sub">Export your current plugin configuration as JSON or restore from a backup.</div>
-                <textarea id="vfa-backup-json" style="width:100%;height:160px;margin-top:12px;background:#1e1f22;color:#dbdee1;border:1px solid #111214;border-radius:6px;padding:10px;font-family:monospace;font-size:12px;">${Settings.exportJSON()}</textarea>
-                <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">
-                    <button class="vfa-btn" id="vfa-import-btn">Import Settings JSON</button>
-                    <button class="vfa-btn danger" id="vfa-reset-all-btn">Reset All Plugins</button>
-                </div>
-            </div>
-        `;
-
-        container.querySelector("#vfa-import-btn").addEventListener("click", () => {
-            try {
-                Settings.importJSON(container.querySelector("#vfa-backup-json").value);
-                PluginManager.stopAll();
-                PluginManager.startAllEnabled();
-                this._renderModalContent(overlay);
-            } catch (e) {
-                alert("Invalid JSON: " + e.message);
-            }
-        });
-
-        container.querySelector("#vfa-reset-all-btn").addEventListener("click", () => {
-            PluginManager.stopAll();
-            Settings.wipeAll();
-            PluginManager.startAllEnabled();
-            this._renderModalContent(overlay);
-        });
+        this.unpatches = [];
     }
 }
 const SettingsInjector = new DiscordSettingsInjector();
 
 // --- Module: src/index.js ---
 /**
- * VencordForAndroid - Main Entry Point
+ * VencordForAndroid v0.0.4 - Main Entry Point
+ * Follows Vendicated/Vencord/src/Vencord.ts
  * Repository: https://github.com/juli22292/vencordforandroid
- * Version: 0.0.2
- * Injects directly into the existing official Discord Android app (com.discord).
  */
 
 
@@ -3727,61 +3585,48 @@ class VencordForAndroidRuntime {
         this.version = CORE_VERSION;
         this.corruptedVersions = CORRUPTED_VERSIONS;
         this.repository = CORE_REPO;
-        this.targetPackage = "com.discord";
         this.initialized = false;
         this.Settings = Settings;
+        this.SettingsStore = SettingsStore;
+        this.PlainSettings = PlainSettings;
         this.Patcher = Patcher;
+        this.Webpack = Webpack;
+        this.Metro = Metro;
         this.Plugins = PluginManager;
         this.Updater = Updater;
         this.UI = SettingsInjector;
         this.definePlugin = definePlugin;
+        this.definePluginSettings = definePluginSettings;
+        this.OptionType = OptionType;
     }
 
     async init() {
         if (this.initialized) return;
 
-        // Check if host installer or previously cached state is on corrupted version 0.0.1
-        let hostVersion = null;
-        try {
-            if (typeof globalThis !== "undefined" && globalThis.AndroidInstaller?.getSystemStatusJson) {
-                const status = JSON.parse(globalThis.AndroidInstaller.getSystemStatusJson());
-                hostVersion = status.installerVersion;
-            } else if (typeof globalThis !== "undefined" && globalThis.__VENCORD_HOST_VERSION__) {
-                hostVersion = globalThis.__VENCORD_HOST_VERSION__;
-            }
-        } catch (_) {}
-
-        if (hostVersion && !Updater.enforceVersionPolicy(hostVersion)) {
-            console.error(`[VencordForAndroid] Blocked execution on corrupted version v${hostVersion}. Update to v${this.version} required.`);
-            return;
-        }
-
         Settings.set("version", this.version);
-        console.log(`[VencordForAndroid] Initializing v${this.version} inside official Discord (${this.targetPackage})...`);
+        console.log(`[VencordForAndroid] Initializing v${this.version} (${this.repository}) inside Discord JS runtime...`);
 
-        // 1. Register all built-in and custom plugins
+        // 1. Register all official Vencord plugins
         PluginManager.registerAll(BUILTIN_PLUGINS);
 
-        // 2. Start all enabled plugins
-        PluginManager.startAllEnabled();
-
-        // 3. Inject "VencordForAndroid" section into the official Discord app Settings ("Einstellungen", "Plugins", "Updater", "Backup & Reset")
+        // 2. Hook Discord's native Settings router (React Native SETTING_RENDERER_CONFIG & Webpack .buildLayout())
         SettingsInjector.init();
 
-        this.initialized = true;
-        console.log(`[VencordForAndroid] Loaded ${PluginManager.getAllPlugins().length} plugins into official Discord app.`);
+        // 3. Initialize and start all enabled plugins
+        PluginManager.startAllEnabled();
 
-        // 4. Auto-update check against juli22292/vencordforandroid
-        if (Settings.get("autoUpdateCheck")) {
+        this.initialized = true;
+        console.log(`[VencordForAndroid] Loaded ${PluginManager.getAllPlugins().length} official Vencord plugins into Discord.`);
+
+        // 4. Automatic update check against juli22292/vencordforandroid
+        if (Settings.get("autoUpdate")) {
             Updater.checkForUpdates().catch(() => {});
         }
     }
 
     uninstall() {
-        console.log("[VencordForAndroid] Uninstalling VencordForAndroid and all plugins from official Discord...");
-        SettingsInjector.closeSettingsModal();
-        const section = typeof document !== "undefined" ? document.getElementById("vfa-discord-settings-section") : null;
-        if (section) section.remove();
+        console.log("[VencordForAndroid] Uninstalling VencordForAndroid from Discord runtime...");
+        SettingsInjector.unpatchAll();
         PluginManager.uninstallAll();
         this.initialized = false;
     }
@@ -3790,9 +3635,11 @@ const VencordForAndroid = new VencordForAndroidRuntime();
 
 if (typeof globalThis !== "undefined") {
     globalThis.VencordForAndroid = VencordForAndroid;
+    globalThis.Vencord = VencordForAndroid;
 }
 if (typeof window !== "undefined") {
     window.VencordForAndroid = VencordForAndroid;
+    window.Vencord = VencordForAndroid;
 }
 
 VencordForAndroid.init();

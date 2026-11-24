@@ -1,12 +1,11 @@
 /**
- * VencordForAndroid - Main Entry Point
+ * VencordForAndroid v0.0.4 - Main Entry Point
+ * Follows Vendicated/Vencord/src/Vencord.ts
  * Repository: https://github.com/juli22292/vencordforandroid
- * Version: 0.0.2
- * Injects directly into the existing official Discord Android app (com.discord).
  */
 
-import { Settings } from "./core/Settings.js";
-import { Patcher } from "./core/Patcher.js";
+import { Settings, SettingsStore, PlainSettings, definePluginSettings, OptionType } from "./core/Settings.js";
+import { Patcher, Webpack, Metro } from "./core/Patcher.js";
 import { PluginManager, definePlugin } from "./core/PluginManager.js";
 import { Updater, CORE_VERSION, CORE_REPO, CORRUPTED_VERSIONS } from "./core/Updater.js";
 import { BUILTIN_PLUGINS } from "./plugins/builtinPlugins.js";
@@ -17,61 +16,48 @@ class VencordForAndroidRuntime {
         this.version = CORE_VERSION;
         this.corruptedVersions = CORRUPTED_VERSIONS;
         this.repository = CORE_REPO;
-        this.targetPackage = "com.discord";
         this.initialized = false;
         this.Settings = Settings;
+        this.SettingsStore = SettingsStore;
+        this.PlainSettings = PlainSettings;
         this.Patcher = Patcher;
+        this.Webpack = Webpack;
+        this.Metro = Metro;
         this.Plugins = PluginManager;
         this.Updater = Updater;
         this.UI = SettingsInjector;
         this.definePlugin = definePlugin;
+        this.definePluginSettings = definePluginSettings;
+        this.OptionType = OptionType;
     }
 
     async init() {
         if (this.initialized) return;
 
-        // Check if host installer or previously cached state is on corrupted version 0.0.1
-        let hostVersion = null;
-        try {
-            if (typeof globalThis !== "undefined" && globalThis.AndroidInstaller?.getSystemStatusJson) {
-                const status = JSON.parse(globalThis.AndroidInstaller.getSystemStatusJson());
-                hostVersion = status.installerVersion;
-            } else if (typeof globalThis !== "undefined" && globalThis.__VENCORD_HOST_VERSION__) {
-                hostVersion = globalThis.__VENCORD_HOST_VERSION__;
-            }
-        } catch (_) {}
-
-        if (hostVersion && !Updater.enforceVersionPolicy(hostVersion)) {
-            console.error(`[VencordForAndroid] Blocked execution on corrupted version v${hostVersion}. Update to v${this.version} required.`);
-            return;
-        }
-
         Settings.set("version", this.version);
-        console.log(`[VencordForAndroid] Initializing v${this.version} inside official Discord (${this.targetPackage})...`);
+        console.log(`[VencordForAndroid] Initializing v${this.version} (${this.repository}) inside Discord JS runtime...`);
 
-        // 1. Register all built-in and custom plugins
+        // 1. Register all official Vencord plugins
         PluginManager.registerAll(BUILTIN_PLUGINS);
 
-        // 2. Start all enabled plugins
-        PluginManager.startAllEnabled();
-
-        // 3. Inject "VencordForAndroid" section into the official Discord app Settings ("Einstellungen", "Plugins", "Updater", "Backup & Reset")
+        // 2. Hook Discord's native Settings router (React Native SETTING_RENDERER_CONFIG & Webpack .buildLayout())
         SettingsInjector.init();
 
-        this.initialized = true;
-        console.log(`[VencordForAndroid] Loaded ${PluginManager.getAllPlugins().length} plugins into official Discord app.`);
+        // 3. Initialize and start all enabled plugins
+        PluginManager.startAllEnabled();
 
-        // 4. Auto-update check against juli22292/vencordforandroid
-        if (Settings.get("autoUpdateCheck")) {
+        this.initialized = true;
+        console.log(`[VencordForAndroid] Loaded ${PluginManager.getAllPlugins().length} official Vencord plugins into Discord.`);
+
+        // 4. Automatic update check against juli22292/vencordforandroid
+        if (Settings.get("autoUpdate")) {
             Updater.checkForUpdates().catch(() => {});
         }
     }
 
     uninstall() {
-        console.log("[VencordForAndroid] Uninstalling VencordForAndroid and all plugins from official Discord...");
-        SettingsInjector.closeSettingsModal();
-        const section = typeof document !== "undefined" ? document.getElementById("vfa-discord-settings-section") : null;
-        if (section) section.remove();
+        console.log("[VencordForAndroid] Uninstalling VencordForAndroid from Discord runtime...");
+        SettingsInjector.unpatchAll();
         PluginManager.uninstallAll();
         this.initialized = false;
     }
@@ -81,9 +67,11 @@ export const VencordForAndroid = new VencordForAndroidRuntime();
 
 if (typeof globalThis !== "undefined") {
     globalThis.VencordForAndroid = VencordForAndroid;
+    globalThis.Vencord = VencordForAndroid;
 }
 if (typeof window !== "undefined") {
     window.VencordForAndroid = VencordForAndroid;
+    window.Vencord = VencordForAndroid;
 }
 
 VencordForAndroid.init();

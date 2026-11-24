@@ -1,45 +1,77 @@
 /**
- * VencordForAndroid - Persistent Settings Store (v0.0.3)
- * Manages core configuration, QuickCSS, themes, UI element visibility, and per-plugin state.
+ * VencordForAndroid v0.0.4 - Settings & SettingsStore API
+ * Follows Vendicated/Vencord/src/api/Settings.ts architecture for Discord Android (MMKV / NativeBridge / Storage).
  */
 
-const STORAGE_KEY = "VencordForAndroid_Settings_v1";
+const STORAGE_KEY = "VencordForAndroid_Settings_v4";
 
 const DEFAULT_SETTINGS = {
-    version: "0.0.3",
-    installedAt: null,
-    autoUpdateCheck: true,
-    notifyOnUpdates: true,
-    safeMode: false,
-    developerMode: false,
+    version: "0.0.4",
+    autoUpdate: true,
+    autoUpdateNotification: true,
     useQuickCss: true,
     quickCss: "",
     themeLinks: [],
-    uiElements: {
-        chatBarButtons: true,
-        messagePopoverButtons: true
+    enabledThemes: [],
+    enableReactDevtools: false,
+    safeMode: false,
+    settingsLocation: "aboveNitro",
+    cloud: {
+        authenticated: false,
+        url: "https://api.vencord.dev/",
+        settingsSync: false,
+        settingsSyncVersion: 0
     },
-    repoOwner: "juli22292",
-    repoName: "vencordforandroid",
-    repoUrl: "https://github.com/juli22292/vencordforandroid",
-    installerRepoUrl: "https://github.com/juli22292/vencordandroidapp",
+    uiElements: {
+        chatBarButtons: {},
+        messagePopoverButtons: {}
+    },
     plugins: {}
 };
 
-class SettingsManager {
+export const OptionType = {
+    STRING: 0,
+    NUMBER: 1,
+    BIGINT: 2,
+    BOOLEAN: 3,
+    SELECT: 4,
+    SLIDER: 5,
+    COMPONENT: 6,
+    CUSTOM: 7
+};
+
+export function definePluginSettings(def) {
+    const defined = {
+        def,
+        pluginName: "",
+        get store() {
+            return Settings.getPluginOptionsProxy(this.pluginName, def);
+        },
+        withPrivateSettings() {
+            return this;
+        }
+    };
+    return defined;
+}
+
+class SettingsStoreService {
     constructor() {
-        this.state = this._load();
-        this.listeners = new Set();
+        this.plain = this._load();
+        this.globalListeners = new Set();
+        this.pathListeners = new Map();
     }
 
-    _getStorageBackend() {
+    _getNativeStorage() {
         if (typeof globalThis !== "undefined") {
-            if (globalThis.__VENCORD_NATIVE_STORAGE__) {
-                return globalThis.__VENCORD_NATIVE_STORAGE__;
+            // 1. Native Xposed / Loader Bridge inside com.discord
+            if (globalThis.__VENCORD_NATIVE_BRIDGE__ && typeof globalThis.__VENCORD_NATIVE_BRIDGE__.readSettingsJson === "function") {
+                return {
+                    getItem: () => globalThis.__VENCORD_NATIVE_BRIDGE__.readSettingsJson(),
+                    setItem: (_k, v) => globalThis.__VENCORD_NATIVE_BRIDGE__.writeSettingsJson(v),
+                    removeItem: () => globalThis.__VENCORD_NATIVE_BRIDGE__.writeSettingsJson("")
+                };
             }
-            if (globalThis.localStorage) {
-                return globalThis.localStorage;
-            }
+            // 2. Discord React Native MMKV storage
             if (globalThis.mmkvStorage) {
                 return {
                     getItem: (k) => globalThis.mmkvStorage.getString(k) ?? null,
@@ -47,129 +79,164 @@ class SettingsManager {
                     removeItem: (k) => globalThis.mmkvStorage.delete(k)
                 };
             }
+            // 3. Web / DOM localStorage
+            if (globalThis.localStorage) {
+                return globalThis.localStorage;
+            }
         }
-        if (!this._memoryFallback) {
-            this._memoryFallback = new Map();
-        }
+        if (!this._mem) this._mem = new Map();
         return {
-            getItem: (k) => this._memoryFallback.get(k) ?? null,
-            setItem: (k, v) => this._memoryFallback.set(k, v),
-            removeItem: (k) => this._memoryFallback.delete(k)
+            getItem: (k) => this._mem.get(k) ?? null,
+            setItem: (k, v) => this._mem.set(k, v),
+            removeItem: (k) => this._mem.delete(k)
         };
     }
 
     _load() {
         try {
-            const backend = this._getStorageBackend();
-            const raw = backend.getItem(STORAGE_KEY);
+            const storage = this._getNativeStorage();
+            const raw = storage.getItem(STORAGE_KEY);
             if (!raw) {
-                const initial = {
-                    ...DEFAULT_SETTINGS,
-                    installedAt: new Date().toISOString()
-                };
-                backend.setItem(STORAGE_KEY, JSON.stringify(initial));
-                return initial;
+                const init = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+                storage.setItem(STORAGE_KEY, JSON.stringify(init));
+                return init;
             }
             const parsed = JSON.parse(raw);
             return {
                 ...DEFAULT_SETTINGS,
                 ...parsed,
-                version: "0.0.3",
+                version: "0.0.4",
+                cloud: { ...DEFAULT_SETTINGS.cloud, ...(parsed.cloud || {}) },
+                uiElements: { ...DEFAULT_SETTINGS.uiElements, ...(parsed.uiElements || {}) },
                 plugins: { ...(parsed.plugins || {}) }
             };
         } catch (err) {
-            console.error("[VencordForAndroid] Failed to load settings:", err);
-            return { ...DEFAULT_SETTINGS };
+            return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
         }
     }
 
-    save() {
+    save(changedPath = "") {
         try {
-            const backend = this._getStorageBackend();
-            backend.setItem(STORAGE_KEY, JSON.stringify(this.state));
-            this._emit();
+            const storage = this._getNativeStorage();
+            storage.setItem(STORAGE_KEY, JSON.stringify(this.plain));
+            this._notify(changedPath);
         } catch (err) {
-            console.error("[VencordForAndroid] Failed to save settings:", err);
+            console.error("[VencordForAndroid:SettingsStore] Save failed:", err);
         }
     }
 
     get(key) {
-        return this.state[key];
+        return this.plain[key];
     }
 
     set(key, value) {
-        this.state[key] = value;
-        this.save();
+        this.plain[key] = value;
+        this.save(key);
     }
 
     getPluginConfig(pluginName, defaults = {}) {
-        if (!this.state.plugins[pluginName]) {
-            this.state.plugins[pluginName] = {
+        if (!this.plain.plugins[pluginName]) {
+            this.plain.plugins[pluginName] = {
                 enabled: Boolean(defaults.enabledByDefault),
                 options: { ...(defaults.defaultOptions || {}) }
             };
+        } else if (!this.plain.plugins[pluginName].options) {
+            this.plain.plugins[pluginName].options = { ...(defaults.defaultOptions || {}) };
         }
-        return this.state.plugins[pluginName];
+        return this.plain.plugins[pluginName];
+    }
+
+    getPluginOptionsProxy(pluginName, def = {}) {
+        const defaultOptions = {};
+        for (const [k, opt] of Object.entries(def)) {
+            defaultOptions[k] = opt.default !== undefined
+                ? opt.default
+                : (Array.isArray(opt.options) ? opt.options.find((o) => o.default)?.value : undefined);
+        }
+        const cfg = this.getPluginConfig(pluginName, { defaultOptions });
+        const self = this;
+        return new Proxy(cfg.options, {
+            get(target, prop) {
+                if (prop in target) return target[prop];
+                return defaultOptions[prop];
+            },
+            set(target, prop, value) {
+                target[prop] = value;
+                self.save(`plugins.${pluginName}.${String(prop)}`);
+                return true;
+            }
+        });
     }
 
     setPluginEnabled(pluginName, enabled) {
         const cfg = this.getPluginConfig(pluginName);
         cfg.enabled = Boolean(enabled);
-        this.save();
-        if (typeof globalThis !== "undefined" && globalThis.__VENCORD_ANDROID_BRIDGE__?.setPluginEnabledNative) {
-            try {
-                globalThis.__VENCORD_ANDROID_BRIDGE__.setPluginEnabledNative(pluginName, Boolean(enabled));
-            } catch (_) {}
-        }
+        this.save(`plugins.${pluginName}.enabled`);
     }
 
     setPluginOption(pluginName, optionKey, value) {
         const cfg = this.getPluginConfig(pluginName);
         if (!cfg.options) cfg.options = {};
         cfg.options[optionKey] = value;
-        this.save();
+        this.save(`plugins.${pluginName}.${optionKey}`);
     }
 
-    subscribe(listener) {
-        this.listeners.add(listener);
-        return () => this.listeners.delete(listener);
+    addGlobalChangeListener(cb) {
+        this.globalListeners.add(cb);
+        return () => this.globalListeners.delete(cb);
     }
 
-    _emit() {
-        for (const listener of this.listeners) {
+    subscribe(cb) {
+        return this.addGlobalChangeListener(cb);
+    }
+
+    addChangeListener(path, cb) {
+        if (!this.pathListeners.has(path)) {
+            this.pathListeners.set(path, new Set());
+        }
+        this.pathListeners.get(path).add(cb);
+        return () => this.pathListeners.get(path)?.delete(cb);
+    }
+
+    _notify(path) {
+        for (const cb of this.globalListeners) {
             try {
-                listener(this.state);
-            } catch (err) {
-                console.error("[VencordForAndroid] Settings listener error:", err);
+                cb(this.plain, path);
+            } catch (_) {}
+        }
+        if (path && this.pathListeners.has(path)) {
+            for (const cb of this.pathListeners.get(path)) {
+                try {
+                    cb();
+                } catch (_) {}
             }
         }
     }
 
     exportJSON() {
-        return JSON.stringify(this.state, null, 2);
+        return JSON.stringify(this.plain, null, 2);
     }
 
-    importJSON(jsonString) {
-        const parsed = JSON.parse(jsonString);
-        this.state = {
+    importJSON(jsonStr) {
+        const parsed = JSON.parse(jsonStr);
+        this.plain = {
             ...DEFAULT_SETTINGS,
             ...parsed,
+            version: "0.0.4",
             plugins: { ...(parsed.plugins || {}) }
         };
         this.save();
     }
 
     wipeAll() {
-        try {
-            const backend = this._getStorageBackend();
-            backend.removeItem(STORAGE_KEY);
-            this.state = { ...DEFAULT_SETTINGS, plugins: {} };
-            this._emit();
-        } catch (err) {
-            console.error("[VencordForAndroid] Failed to wipe settings:", err);
-        }
+        const storage = this._getNativeStorage();
+        storage.removeItem(STORAGE_KEY);
+        this.plain = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+        this._notify("*");
     }
 }
 
-export const Settings = new SettingsManager();
+export const Settings = new SettingsStoreService();
+export const SettingsStore = Settings;
+export const PlainSettings = Settings.plain;
 export default Settings;

@@ -1,18 +1,21 @@
 {
   "name": "vencordforandroid",
-  "version": "0.0.3",
-  "minInstallerVersion": "0.0.2",
+  "version": "0.0.4",
+  "type": "module",
+  "minInstallerVersion": "0.0.4",
   "corruptedVersions": [
-    "0.0.1"
+    "0.0.1",
+    "0.0.2",
+    "0.0.3"
   ],
-  "description": "VencordForAndroid core mod and official Vencord plugins adapted for Discord on Android",
+  "description": "VencordForAndroid core mod and official Vencord plugins injected directly into Discord's React Native / Webpack runtime",
   "main": "dist/vencordforandroid.js",
   "repository": {
     "type": "git",
     "url": "https://github.com/juli22292/vencordforandroid.git"
   },
   "author": "juli22292",
-  "license": "GPL-3.0",
+  "license": "GPL-3.0-or-later",
   "scripts": {
     "build": "node scripts/build.mjs",
     "verify": "node scripts/build.mjs --verify"
