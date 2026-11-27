@@ -98,7 +98,7 @@ const manifest = {
     sha256,
     pluginCount: BUILTIN_PLUGINS.length,
     builtAt,
-    changelog: `v${version}: Vencord als Abschnitt in den nativen Discord-Einstellungen und überarbeitete Metro-Modulerkennung.`
+    changelog: `v${version}: Der Vencord-Abschnitt wird auch in der durchsuchbaren Einstellungsübersicht von Discord 355.10 eingebunden.`
 };
 
 fs.writeFileSync(path.join(distDir, "manifest.json"), JSON.stringify(manifest, null, 2), "utf8");

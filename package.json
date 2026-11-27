@@ -1,6 +1,6 @@
 {
   "name": "vencordforandroid",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "minInstallerVersion": "0.0.2",
   "corruptedVersions": [
@@ -15,7 +15,8 @@
   "author": "juli22292",
   "license": "GPL-3.0-or-later",
   "scripts": {
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "test": "node --test"
   },
   "devDependencies": {
     "@babel/core": "7.29.13",

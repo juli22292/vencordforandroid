@@ -39,11 +39,16 @@ function withVencordSections(props) {
     return sections === props.sections ? props : { ...props, sections };
 }
 
+function isMemoizedRenderer(renderer) {
+    return renderer?.$$typeof === Symbol.for("react.memo") && typeof renderer.type === "function";
+}
+
 export class DiscordSettingsInjector {
     constructor() {
         this.unpatches = [];
         this.active = false;
         this.configRegistered = false;
+        this.sectionRendered = false;
         this.checkedUpdate = null;
     }
 
@@ -53,6 +58,10 @@ export class DiscordSettingsInjector {
         this.unpatches.push(Patcher.waitFor(
             (module) => module?.SETTING_RENDERER_CONFIG && typeof module.SETTING_RENDERER_CONFIG === "object",
             (module) => this.registerConfig(module)
+        ));
+        this.unpatches.push(Patcher.waitFor(
+            (module) => isMemoizedRenderer(module?.SearchableSettingsList) && isMemoizedRenderer(module?.SettingsList),
+            (module) => this.patchSections(module, "SearchableSettingsList")
         ));
         this.unpatches.push(Patcher.waitFor(
             (module) => typeof module?.SettingsList === "function",
@@ -65,20 +74,28 @@ export class DiscordSettingsInjector {
     }
 
     patchSections(module, key) {
-        const target = Patcher.patchableMetroExport(module, key);
-        const descriptor = Object.getOwnPropertyDescriptor(target, key);
+        const renderer = module[key];
+        const memoized = isMemoizedRenderer(renderer);
+        const target = memoized ? renderer : Patcher.patchableMetroExport(module, key);
+        const property = memoized ? "type" : key;
+        const descriptor = Object.getOwnPropertyDescriptor(target, property);
         if (!descriptor?.configurable && !descriptor?.writable) return;
-        const original = target[key];
+        const original = target[property];
         const injector = this;
-        Object.defineProperty(target, key, {
+        Object.defineProperty(target, property, {
             configurable: descriptor.configurable,
             enumerable: descriptor.enumerable,
             writable: true,
             value: function (props, ...rest) {
-                return original.call(this, injector.configRegistered ? withVencordSections(props) : props, ...rest);
+                const nextProps = injector.configRegistered ? withVencordSections(props) : props;
+                if (nextProps !== props && !injector.sectionRendered) {
+                    injector.sectionRendered = true;
+                    globalThis.console?.log?.("[VencordForAndroid] Vencord section added to Discord settings.");
+                }
+                return original.call(this, nextProps, ...rest);
             }
         });
-        this.unpatches.push(() => Object.defineProperty(target, key, descriptor));
+        this.unpatches.push(() => Object.defineProperty(target, property, descriptor));
     }
 
     registerConfig(module) {
@@ -126,7 +143,8 @@ export class DiscordSettingsInjector {
             const NativeSettingsPage = () => {
                 const React = Patcher.Common.React;
                 const ScrollView = Patcher.Common.ReactNative?.ScrollView;
-                const list = Patcher.findByProps("SettingsList")?.SettingsList;
+                const renderer = Patcher.findByProps("SettingsList", "SearchableSettingsList") ?? Patcher.findByProps("SettingsList");
+                const list = renderer?.SettingsList;
                 if (!React || !ScrollView || !list) return null;
                 const sections = [{ settings: rows }];
                 return React.createElement(ScrollView, { style: { flex: 1 } },
@@ -231,6 +249,7 @@ export class DiscordSettingsInjector {
         for (const unpatch of this.unpatches.reverse()) unpatch();
         this.unpatches.length = 0;
         this.configRegistered = false;
+        this.sectionRendered = false;
         this.active = false;
     }
 }

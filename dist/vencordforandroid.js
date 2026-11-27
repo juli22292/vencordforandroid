@@ -5,17 +5,17 @@ function _createClass(e, r, t) { return r && _defineProperties(e.prototype, r), 
 function _toPropertyKey(t) { var i = _toPrimitive(t, "string"); return "symbol" == typeof i ? i : i + ""; }
 function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; if ("undefined" != typeof Symbol && void 0 !== (r = t[Symbol.toPrimitive])) { var i = r.call(t, e || "default"); if ("object" != typeof i) return i; throw new TypeError("@@toPrimitive must return a primitive value."); } return ("string" === e ? String : Number)(t); }
 /**
- * VencordForAndroid v0.1.1 (React Native / Hermes Bundle for com.discord)
+ * VencordForAndroid v0.1.2 (React Native / Hermes Bundle for com.discord)
  * Repository: https://github.com/juli22292/vencordforandroid
  * Includes 170 plugin definitions
- * Built: 2026-11-27T15:02:23.962Z
+ * Built: 2026-11-27T15:25:32.835Z
  */
 (function (global) {
   "use strict";
 
   try {
     // --- Module: src/core/Version.js ---
-    const CORE_VERSION = "0.1.1";
+    const CORE_VERSION = "0.1.2";
 
     // --- Module: src/core/Settings.js ---
     /**
@@ -4468,12 +4468,16 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
         sections
       };
     }
+    function isMemoizedRenderer(renderer) {
+      return renderer?.$$typeof === Symbol.for("react.memo") && typeof renderer.type === "function";
+    }
     let DiscordSettingsInjector = /*#__PURE__*/function () {
       function DiscordSettingsInjector() {
         _classCallCheck(this, DiscordSettingsInjector);
         this.unpatches = [];
         this.active = false;
         this.configRegistered = false;
+        this.sectionRendered = false;
         this.checkedUpdate = null;
       }
       return _createClass(DiscordSettingsInjector, [{
@@ -4482,26 +4486,35 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
           if (this.active) return;
           this.active = true;
           this.unpatches.push(Patcher.waitFor(module => module?.SETTING_RENDERER_CONFIG && typeof module.SETTING_RENDERER_CONFIG === "object", module => this.registerConfig(module)));
+          this.unpatches.push(Patcher.waitFor(module => isMemoizedRenderer(module?.SearchableSettingsList) && isMemoizedRenderer(module?.SettingsList), module => this.patchSections(module, "SearchableSettingsList")));
           this.unpatches.push(Patcher.waitFor(module => typeof module?.SettingsList === "function", module => this.patchSections(module, "SettingsList")));
           this.unpatches.push(Patcher.waitFor(module => typeof module?.createList === "function", module => this.patchSections(module, "createList")));
         }
       }, {
         key: "patchSections",
         value: function patchSections(module, key) {
-          const target = Patcher.patchableMetroExport(module, key);
-          const descriptor = Object.getOwnPropertyDescriptor(target, key);
+          const renderer = module[key];
+          const memoized = isMemoizedRenderer(renderer);
+          const target = memoized ? renderer : Patcher.patchableMetroExport(module, key);
+          const property = memoized ? "type" : key;
+          const descriptor = Object.getOwnPropertyDescriptor(target, property);
           if (!descriptor?.configurable && !descriptor?.writable) return;
-          const original = target[key];
+          const original = target[property];
           const injector = this;
-          Object.defineProperty(target, key, {
+          Object.defineProperty(target, property, {
             configurable: descriptor.configurable,
             enumerable: descriptor.enumerable,
             writable: true,
             value: function (props, ...rest) {
-              return original.call(this, injector.configRegistered ? withVencordSections(props) : props, ...rest);
+              const nextProps = injector.configRegistered ? withVencordSections(props) : props;
+              if (nextProps !== props && !injector.sectionRendered) {
+                injector.sectionRendered = true;
+                globalThis.console?.log?.("[VencordForAndroid] Vencord section added to Discord settings.");
+              }
+              return original.call(this, nextProps, ...rest);
             }
           });
-          this.unpatches.push(() => Object.defineProperty(target, key, descriptor));
+          this.unpatches.push(() => Object.defineProperty(target, property, descriptor));
         }
       }, {
         key: "registerConfig",
@@ -4558,7 +4571,8 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
             const NativeSettingsPage = () => {
               const React = Patcher.Common.React;
               const ScrollView = Patcher.Common.ReactNative?.ScrollView;
-              const list = Patcher.findByProps("SettingsList")?.SettingsList;
+              const renderer = Patcher.findByProps("SettingsList", "SearchableSettingsList") ?? Patcher.findByProps("SettingsList");
+              const list = renderer?.SettingsList;
               if (!React || !ScrollView || !list) return null;
               const sections = [{
                 settings: rows
@@ -4671,6 +4685,7 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
           for (const unpatch of this.unpatches.reverse()) unpatch();
           this.unpatches.length = 0;
           this.configRegistered = false;
+          this.sectionRendered = false;
           this.active = false;
         }
       }]);
