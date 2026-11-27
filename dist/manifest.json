@@ -1,6 +1,6 @@
 {
   "name": "VencordForAndroid",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "minRequiredVersion": "0.0.2",
   "minInstallerVersion": "0.0.2",
   "corruptedVersions": [
@@ -10,10 +10,10 @@
   "repository": "juli22292/vencordforandroid",
   "installerRepository": "juli22292/vencordandroidapp",
   "bundleFile": "vencordforandroid.js",
-  "bundleUrl": "https://github.com/juli22292/vencordforandroid/releases/download/0.1.2/vencordforandroid.js",
+  "bundleUrl": "https://github.com/juli22292/vencordforandroid/releases/download/0.1.3/vencordforandroid.js",
   "rawBundleUrl": "https://raw.githubusercontent.com/juli22292/vencordforandroid/main/dist/vencordforandroid.js",
-  "sha256": "3a01ac892c4ffc1b7fa025e3397a75d3ea7c68878b35d2184b67a5107dc16aea",
+  "sha256": "0a96b72643e19fd7d2d93dc6f14f9a7451068364acb3613bae7511795736d483",
   "pluginCount": 170,
-  "builtAt": "2026-11-27T15:25:32.835Z",
-  "changelog": "v0.1.2: Der Vencord-Abschnitt wird auch in der durchsuchbaren Einstellungsübersicht von Discord 355.10 eingebunden."
+  "builtAt": "2026-11-27T15:57:07.893Z",
+  "changelog": "v0.1.3: Native Symbole, fünf offizielle Plugin-Portierungen und Wiederherstellung aus der Zwischenablage."
 }

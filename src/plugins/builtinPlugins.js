@@ -1,10 +1,11 @@
 /**
- * VencordForAndroid - Official Vencord Plugins Ported & Adapted for Android
+ * VencordForAndroid plugin catalog and legacy Android plugins
  * Source: https://github.com/Vendicated/Vencord/tree/main/src/plugins
  * Adapted for Android by juli22292
  */
 
 import { definePlugin } from "../core/PluginManager.js";
+import { ClearURLs, NoReplyMention, SilentTyping, TextReplace, Unindent } from "./officialChatPlugins.js";
 
 export const AccountPanelServerProfile = definePlugin({
     name: "AccountPanelServerProfile",
@@ -263,40 +264,6 @@ export const CallTimer = definePlugin({
     enabledByDefault: true,
     options: {
         format: { type: "select", label: "Timer Format", choices: ["stopwatch", "human"], default: "stopwatch" }
-    }
-});
-
-export const ClearURLs = definePlugin({
-    name: "ClearURLs",
-    description: "Removes tracking garbage (utm_*, fbclid, si, igshid) from URLs before sending",
-    authors: [{ name: "Vendicated" }, { name: "juli22292" }],
-    tags: ["Privacy", "Chat"],
-    enabledByDefault: true,
-    start({ patcher }) {
-        const TRACKING_PARAMS = [/^utm_/i, /^fbclid$/i, /^gclid$/i, /^igshid$/i, /^si$/i, /^mc_eid$/i, /^_hsenc$/i];
-        const cleanTextUrls = (content) => {
-            if (typeof content !== "string" || !content.includes("http")) return content;
-            return content.replace(/https?:\/\/[^\s<>]+/g, (rawUrl) => {
-                try {
-                    const url = new URL(rawUrl);
-                    for (const key of Array.from(url.searchParams.keys())) {
-                        if (TRACKING_PARAMS.some((rx) => rx.test(key))) url.searchParams.delete(key);
-                    }
-                    return url.toString();
-                } catch {
-                    return rawUrl;
-                }
-            });
-        };
-        const MessageActions = patcher.findByProps("sendMessage", "editMessage");
-        if (MessageActions && typeof MessageActions.sendMessage === "function") {
-            patcher.before("ClearURLs", MessageActions, "sendMessage", (args) => {
-                if (args[1] && typeof args[1].content === "string") {
-                    args[1].content = cleanTextUrls(args[1].content);
-                }
-                return args;
-            });
-        }
     }
 });
 
@@ -958,29 +925,6 @@ export const NoProfileThemes = definePlugin({
     enabledByDefault: false
 });
 
-export const NoReplyMention = definePlugin({
-    name: "NoReplyMention",
-    description: "Automatically sets replies to not ping the target user by default",
-    authors: [{ name: "Vendicated" }, { name: "juli22292" }],
-    tags: ["Chat", "Notifications"],
-    enabledByDefault: true,
-    options: {
-        shouldPingListed: { type: "boolean", label: "Ping users in exception list instead of ignoring them", default: true },
-        inverseShiftReply: { type: "boolean", label: "Invert shift key behavior when replying", default: false }
-    },
-    start({ patcher }) {
-        const ReplyActions = patcher.findByProps("createPendingReply");
-        if (ReplyActions && typeof ReplyActions.createPendingReply === "function") {
-            patcher.before("NoReplyMention", ReplyActions, "createPendingReply", (args) => {
-                if (args[0] && typeof args[0] === "object") {
-                    args[0].shouldMention = false;
-                }
-                return args;
-            });
-        }
-    }
-});
-
 export const NoRPC = definePlugin({
     name: "NoRPC",
     description: "Disables Discord's local RPC server entirely",
@@ -1469,25 +1413,6 @@ export const SilentMessageToggle = definePlugin({
     }
 });
 
-export const SilentTyping = definePlugin({
-    name: "SilentTyping",
-    description: "Hide that you are typing from others",
-    authors: [{ name: "Vendicated" }, { name: "juli22292" }],
-    tags: ["Privacy", "Chat"],
-    enabledByDefault: false,
-    options: {
-        showIcon: { type: "boolean", label: "Show quick toggle icon in the chat bar", default: true },
-        contextMenu: { type: "boolean", label: "Add toggle in chat bar context menu", default: true },
-        isEnabled: { type: "boolean", label: "Currently suppress typing indicator", default: true }
-    },
-    start({ patcher }) {
-        const TypingActions = patcher.findByProps("startTyping", "stopTyping");
-        if (TypingActions && typeof TypingActions.startTyping === "function") {
-            patcher.instead("SilentTyping", TypingActions, "startTyping", () => {});
-        }
-    }
-});
-
 export const SortFriendRequests = definePlugin({
     name: "SortFriendRequests",
     description: "Sorts friend requests by date of receipt",
@@ -1577,17 +1502,6 @@ export const SuperReactionTweaks = definePlugin({
     }
 });
 
-export const TextReplace = definePlugin({
-    name: "TextReplace",
-    description: "Replace text in your own messages using string or regex rules",
-    authors: [{ name: "Vendicated" }, { name: "juli22292" }],
-    tags: ["Chat"],
-    enabledByDefault: false,
-    options: {
-        replaceMode: { type: "select", label: "Rule engine", choices: ["String & Regex", "String Only", "Regex Only"], default: "String & Regex" }
-    }
-});
-
 export const ThemeAttributes = definePlugin({
     name: "ThemeAttributes",
     description: "Adds data attributes to various elements for CSS theming purposes",
@@ -1643,14 +1557,6 @@ export const TypingTweaks = definePlugin({
         showRoleColors: { type: "boolean", label: "Color typing usernames with their role color", default: true },
         alternativeFormatting: { type: "boolean", label: "Show exact list instead of 'Several people are typing'", default: true }
     }
-});
-
-export const Unindent = definePlugin({
-    name: "Unindent",
-    description: "Trims leading indentation from codeblocks",
-    authors: [{ name: "Vendicated" }, { name: "juli22292" }],
-    tags: ["Messages", "Chat"],
-    enabledByDefault: true
 });
 
 export const UnlockedAvatarZoom = definePlugin({

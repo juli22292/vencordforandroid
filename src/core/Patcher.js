@@ -12,6 +12,8 @@ class PatcherAndModuleEngine {
         this.metroModules = new Map();
         this.metroExportOwners = new WeakMap();
         this._commonCache = {};
+        this.assetIds = new Map();
+        this.nextAssetId = 1;
     }
 
     // --- 1. Runtime Method Patching (before / instead / after) ---
@@ -21,7 +23,8 @@ class PatcherAndModuleEngine {
         }
 
         const original = target[method];
-        const entry = { original, active: true };
+        const descriptor = Object.getOwnPropertyDescriptor(target, method);
+        const entry = { original, descriptor, active: true };
         const wrapped = function (...args) {
             if (!entry.active) return original.apply(this, args);
             if (type === "before") {
@@ -54,19 +57,26 @@ class PatcherAndModuleEngine {
         };
 
         wrapped.__vencordOriginal = original;
-        target[method] = wrapped;
+        if (descriptor?.configurable) {
+            Object.defineProperty(target, method, {
+                configurable: true, enumerable: descriptor.enumerable, writable: true, value: wrapped
+            });
+        } else {
+            target[method] = wrapped;
+        }
         this.patchWrappers.set(wrapped, entry);
 
         const unpatch = () => {
             entry.active = false;
             if (target[method] === wrapped) {
-                let next = original;
-                let previous = this.patchWrappers.get(next);
+                let previous = this.patchWrappers.get(entry.original);
+                let restore = entry.descriptor;
                 while (previous && !previous.active) {
-                    next = previous.original;
-                    previous = this.patchWrappers.get(next);
+                    restore = previous.descriptor;
+                    previous = this.patchWrappers.get(previous.original);
                 }
-                target[method] = next;
+                if (restore) Object.defineProperty(target, method, restore);
+                else delete target[method];
             }
             this.patches.get(callerId)?.delete(unpatch);
         };
@@ -304,11 +314,16 @@ class PatcherAndModuleEngine {
     }
 
     findAssetId(assetName) {
+        if (this.assetIds.has(assetName)) return this.assetIds.get(assetName);
         const AssetsRegistry = this.findByProps("registerAsset", "getAssetByID");
         if (!AssetsRegistry) return null;
-        for (let id = 1; id < 8000; id++) {
+        // React Native registers image assets under consecutive IDs starting at 1.
+        for (;;) {
+            const id = this.nextAssetId;
             const asset = AssetsRegistry.getAssetByID(id);
-            if (!asset) continue;
+            if (!asset) break;
+            this.nextAssetId++;
+            if (!this.assetIds.has(asset.name)) this.assetIds.set(asset.name, id);
             if (asset.name === assetName) return id;
         }
         return null;

@@ -5,17 +5,17 @@ function _createClass(e, r, t) { return r && _defineProperties(e.prototype, r), 
 function _toPropertyKey(t) { var i = _toPrimitive(t, "string"); return "symbol" == typeof i ? i : i + ""; }
 function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; if ("undefined" != typeof Symbol && void 0 !== (r = t[Symbol.toPrimitive])) { var i = r.call(t, e || "default"); if ("object" != typeof i) return i; throw new TypeError("@@toPrimitive must return a primitive value."); } return ("string" === e ? String : Number)(t); }
 /**
- * VencordForAndroid v0.1.2 (React Native / Hermes Bundle for com.discord)
+ * VencordForAndroid v0.1.3 (React Native / Hermes Bundle for com.discord)
  * Repository: https://github.com/juli22292/vencordforandroid
  * Includes 170 plugin definitions
- * Built: 2026-11-27T15:25:32.835Z
+ * Built: 2026-11-27T15:57:07.893Z
  */
 (function (global) {
   "use strict";
 
   try {
     // --- Module: src/core/Version.js ---
-    const CORE_VERSION = "0.1.2";
+    const CORE_VERSION = "0.1.3";
 
     // --- Module: src/core/Settings.js ---
     /**
@@ -342,6 +342,8 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
         this.metroModules = new Map();
         this.metroExportOwners = new WeakMap();
         this._commonCache = {};
+        this.assetIds = new Map();
+        this.nextAssetId = 1;
       }
 
       // --- 1. Runtime Method Patching (before / instead / after) ---
@@ -352,8 +354,10 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
             return () => {};
           }
           const original = target[method];
+          const descriptor = Object.getOwnPropertyDescriptor(target, method);
           const entry = {
             original,
+            descriptor,
             active: true
           };
           const wrapped = function (...args) {
@@ -385,18 +389,27 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
             }
           };
           wrapped.__vencordOriginal = original;
-          target[method] = wrapped;
+          if (descriptor?.configurable) {
+            Object.defineProperty(target, method, {
+              configurable: true,
+              enumerable: descriptor.enumerable,
+              writable: true,
+              value: wrapped
+            });
+          } else {
+            target[method] = wrapped;
+          }
           this.patchWrappers.set(wrapped, entry);
           const unpatch = () => {
             entry.active = false;
             if (target[method] === wrapped) {
-              let next = original;
-              let previous = this.patchWrappers.get(next);
+              let previous = this.patchWrappers.get(entry.original);
+              let restore = entry.descriptor;
               while (previous && !previous.active) {
-                next = previous.original;
-                previous = this.patchWrappers.get(next);
+                restore = previous.descriptor;
+                previous = this.patchWrappers.get(previous.original);
               }
-              target[method] = next;
+              if (restore) Object.defineProperty(target, method, restore);else delete target[method];
             }
             this.patches.get(callerId)?.delete(unpatch);
           };
@@ -650,11 +663,16 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
       }, {
         key: "findAssetId",
         value: function findAssetId(assetName) {
+          if (this.assetIds.has(assetName)) return this.assetIds.get(assetName);
           const AssetsRegistry = this.findByProps("registerAsset", "getAssetByID");
           if (!AssetsRegistry) return null;
-          for (let id = 1; id < 8000; id++) {
+          // React Native registers image assets under consecutive IDs starting at 1.
+          for (;;) {
+            const id = this.nextAssetId;
             const asset = AssetsRegistry.getAssetByID(id);
-            if (!asset) continue;
+            if (!asset) break;
+            this.nextAssetId++;
+            if (!this.assetIds.has(asset.name)) this.assetIds.set(asset.name, id);
             if (asset.name === assetName) return id;
           }
           return null;
@@ -750,9 +768,10 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
         this.registry = new Map();
         this.running = new Set();
         this.fluxUnsubscribers = new Map();
+        this.pluginCleanups = new Map();
         this.preSendListeners = new Map();
         this.preEditListeners = new Map();
-        this._messageEventsHooked = false;
+        this.messageEventWaiters = new Map();
       }
       return _createClass(PluginManagerService, [{
         key: "register",
@@ -786,7 +805,9 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
         key: "getAllPlugins",
         value: function getAllPlugins() {
           return Array.from(this.registry.values()).map(plugin => {
-            const cfg = Settings.getPluginConfig(plugin.name);
+            const cfg = Settings.getPluginConfig(plugin.name, {
+              enabledByDefault: plugin.enabledByDefault
+            });
             const available = this._isAvailable(plugin);
             return {
               ...plugin,
@@ -815,7 +836,9 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
           const plugin = this.getPlugin(name);
           if (!plugin || !this._isAvailable(plugin)) return false;
           if (plugin.required || plugin.isDependency) return true;
-          return Boolean(Settings.getPluginConfig(name).enabled);
+          return Boolean(Settings.getPluginConfig(name, {
+            enabledByDefault: plugin.enabledByDefault
+          }).enabled);
         }
       }, {
         key: "isEnabled",
@@ -823,38 +846,41 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
           return this.isPluginEnabled(name);
         }
       }, {
-        key: "_ensureMessageEventsHooked",
-        value: function _ensureMessageEventsHooked() {
-          if (this._messageEventsHooked) return;
-          const MessageActions = Patcher.findByProps("sendMessage", "editMessage");
-          if (!MessageActions) return;
-          this._messageEventsHooked = true;
-          Patcher.before("VencordMessageEventsAPI", MessageActions, "sendMessage", args => {
-            const [channelId, messageObj] = args;
-            if (messageObj && typeof messageObj === "object") {
-              for (const listener of this.preSendListeners.values()) {
+        key: "_ensureMessageEventHooked",
+        value: function _ensureMessageEventHooked(method, marker, listeners, messageIndex) {
+          if (this.messageEventWaiters.has(method)) return;
+          const id = `VencordMessageEventsAPI.${method}`;
+          const cancelWait = Patcher.waitFor([method, marker], actions => {
+            Patcher.before(id, actions, method, args => {
+              if (!listeners.size || typeof args[messageIndex]?.content !== "string") return;
+              const message = {
+                ...args[messageIndex]
+              };
+              const context = args.slice(0, messageIndex);
+              for (const listener of listeners.values()) {
                 try {
-                  listener(channelId, messageObj);
-                } catch (e) {
-                  console.error("[VencordForAndroid:MessageEventsAPI] PreSend listener error:", e);
+                  listener(...context, message);
+                } catch (error) {
+                  console.error(`[VencordForAndroid:MessageEventsAPI] ${method} listener:`, error);
                 }
               }
-            }
-            return args;
-          });
-          Patcher.before("VencordMessageEventsAPI", MessageActions, "editMessage", args => {
-            const [channelId, messageId, messageObj] = args;
-            if (messageObj && typeof messageObj === "object") {
-              for (const listener of this.preEditListeners.values()) {
-                try {
-                  listener(channelId, messageId, messageObj);
-                } catch (e) {
-                  console.error("[VencordForAndroid:MessageEventsAPI] PreEdit listener error:", e);
-                }
+              if (message.content !== args[messageIndex].content) {
+                args[messageIndex] = message;
+                return args;
               }
-            }
-            return args;
+            });
           });
+          this.messageEventWaiters.set(method, () => {
+            cancelWait();
+            Patcher.unpatchAll(id);
+          });
+        }
+      }, {
+        key: "_releaseMessageEvent",
+        value: function _releaseMessageEvent(method, listeners) {
+          if (listeners.size) return;
+          this.messageEventWaiters.get(method)?.();
+          this.messageEventWaiters.delete(method);
         }
       }, {
         key: "initPluginManager",
@@ -909,7 +935,8 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
               setOption: (k, v) => Settings.setPluginOption(plugin.name, k, v)
             };
             if (typeof plugin.start === "function") {
-              plugin.start(context);
+              const cleanup = plugin.start(context);
+              if (typeof cleanup === "function") this.pluginCleanups.set(plugin.name, cleanup);
             }
 
             // Auto-subscribe FluxDispatcher events like official Vencord
@@ -928,12 +955,12 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
               }
             }
             if (typeof plugin.onBeforeMessageSend === "function") {
-              this._ensureMessageEventsHooked();
               this.preSendListeners.set(plugin.name, plugin.onBeforeMessageSend.bind(plugin));
+              this._ensureMessageEventHooked("sendMessage", "getSendMessageOptionsForReply", this.preSendListeners, 1);
             }
             if (typeof plugin.onBeforeMessageEdit === "function") {
-              this._ensureMessageEventsHooked();
               this.preEditListeners.set(plugin.name, plugin.onBeforeMessageEdit.bind(plugin));
+              this._ensureMessageEventHooked("editMessage", "deleteMessage", this.preEditListeners, 2);
             }
             plugin.started = true;
             this.running.add(plugin.name);
@@ -949,12 +976,14 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
         key: "_disposePlugin",
         value: function _disposePlugin(plugin) {
           try {
+            this.pluginCleanups.get(plugin.name)?.();
             plugin.stop?.({
               patcher: Patcher
             });
           } catch (err) {
             console.error(`[VencordForAndroid:PluginManager] Failed to stop ${plugin.name}:`, err);
           }
+          this.pluginCleanups.delete(plugin.name);
           Patcher.unpatchAll(plugin.name);
           const unsubs = this.fluxUnsubscribers.get(plugin.name) || [];
           for (const unsubscribe of unsubs) {
@@ -967,6 +996,8 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
           this.fluxUnsubscribers.delete(plugin.name);
           this.preSendListeners.delete(plugin.name);
           this.preEditListeners.delete(plugin.name);
+          this._releaseMessageEvent("sendMessage", this.preSendListeners);
+          this._releaseMessageEvent("editMessage", this.preEditListeners);
           plugin.started = false;
           this.running.delete(plugin.name);
         }
@@ -1005,6 +1036,15 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
           }
         }
       }, {
+        key: "reloadAllEnabled",
+        value: function reloadAllEnabled() {
+          for (const name of this.running) {
+            const plugin = this.getPlugin(name);
+            if (!plugin.required) this._disposePlugin(plugin);
+          }
+          this.startAllEnabled();
+        }
+      }, {
         key: "stopAll",
         value: function stopAll() {
           for (const name of Array.from(this.running)) {
@@ -1021,7 +1061,6 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
             this._disposePlugin(this.getPlugin(name));
           }
           Patcher.unpatchAll();
-          this._messageEventsHooked = false;
           Settings.wipeAll();
           this.registry.clear();
           for (const name of Object.keys(this.plugins)) delete this.plugins[name];
@@ -1195,9 +1234,297 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
     }();
     const Updater = new UpdaterService();
 
+    // --- Module: src/plugins/officialChatPlugins.js ---
+    /*
+     * Android ports of Vencord plugins from ff5810de5ac334c912321d7528d6d923d28c2db5.
+     * Copyright (c) 2022 Vendicated and contributors
+     * SPDX-License-Identifier: GPL-3.0-or-later
+     */
+
+    const clearUrlsRulesUrl = "https://raw.githubusercontent.com/ClearURLs/Rules/7c30a16c37c13526bd43eead3135459e79975585/data.min.json";
+    const trackingFallback = {
+      urlPattern: /^https?:/i,
+      rules: [/^(?:utm_.*|fbclid|gclid|igshid|mc_eid|_hsenc)$/i]
+    };
+    const clearUrlsFallback = [trackingFallback, {
+      urlPattern: /^https?:\/\/(?:[\w-]+\.)?(?:youtube\.com|youtu\.be|spotify\.com)(?:[:/?#]|$)/i,
+      rules: [/^si$/i]
+    }];
+    let clearUrlsRules = clearUrlsFallback;
+    let clearUrlsRequest;
+    function compileClearUrlsRules(providers) {
+      const compile = patterns => patterns?.map(pattern => new RegExp(pattern, "i"));
+      return Object.values(providers).flatMap(provider => {
+        try {
+          return [{
+            urlPattern: new RegExp(provider.urlPattern, "i"),
+            rules: compile(provider.rules),
+            rawRules: compile(provider.rawRules),
+            exceptions: compile(provider.exceptions)
+          }];
+        } catch {
+          return [];
+        }
+      });
+    }
+    function cleanTrackedUrls(content, providers = clearUrlsRules) {
+      return content.replace(/https?:\/\/[^\s<]+[^<.,:;"'>)|\]\s]/gi, link => {
+        const queryAt = link.indexOf("?");
+        const fragmentAt = link.indexOf("#");
+        if (queryAt === -1 || fragmentAt !== -1 && fragmentAt < queryAt) return link;
+        let cleaned = link;
+        for (const {
+          urlPattern,
+          rules,
+          rawRules,
+          exceptions
+        } of providers) {
+          if (!urlPattern.test(cleaned) || exceptions?.some(rule => rule.test(cleaned))) continue;
+          // Keep the original percent encoding and order of every untouched parameter.
+          const parts = /^(.*?)\?([^#]*)(#.*)?$/.exec(cleaned);
+          if (parts && rules?.length) {
+            const [, base, query, fragment = ""] = parts;
+            const parameters = query.split("&");
+            const kept = parameters.filter(parameter => {
+              const raw = parameter.split("=", 1)[0];
+              let key = raw;
+              try {
+                key = decodeURIComponent(raw.replace(/\+/g, " "));
+              } catch {}
+              return !rules.some(rule => rule.test(key));
+            });
+            if (kept.length !== parameters.length) {
+              cleaned = base + (kept.length ? "?" + kept.join("&") : "") + fragment;
+            }
+          }
+          for (const rule of rawRules ?? []) cleaned = cleaned.replace(rule, "");
+        }
+        return cleaned;
+      });
+    }
+    const ClearURLs = definePlugin({
+      name: "ClearURLs",
+      description: "Entfernt Tracking-Parameter aus Links beim Senden und Bearbeiten.",
+      authors: [{
+        name: "adryd"
+      }, {
+        name: "thororen"
+      }],
+      tags: ["Privacy", "Utility"],
+      enabledByDefault: true,
+      start() {
+        if (clearUrlsRequest || typeof fetch !== "function") return;
+        clearUrlsRequest = fetch(clearUrlsRulesUrl).then(response => {
+          if (!response.ok) throw new Error("ClearURLs rule download failed");
+          return response.json();
+        }).then(({
+          providers
+        }) => {
+          const rules = compileClearUrlsRules(providers);
+          if (rules.length) clearUrlsRules = [trackingFallback, ...rules];
+        }).catch(() => {
+          clearUrlsRequest = undefined;
+        });
+      },
+      onBeforeMessageSend(_channelId, message) {
+        message.content = cleanTrackedUrls(message.content);
+      },
+      onBeforeMessageEdit(_channelId, _messageId, message) {
+        message.content = cleanTrackedUrls(message.content);
+      }
+    });
+    function unindentCodeBlocks(content) {
+      return content.replace(/(^|\n)([ \t]*```[^\n`]*\n)([\s\S]*?)(\n[ \t]*```(?=[ \t]*(?:\r?\n|$)))/g, (block, boundary, opening, body, closing) => {
+        const expanded = body.replace(/\t/g, "    ");
+        const minIndent = expanded.match(/^ *(?=\S)/gm)?.reduce((minimum, indent) => Math.min(minimum, indent.length), Infinity);
+        if (minIndent === undefined) return block;
+        const unindented = minIndent ? expanded.replace(new RegExp(`^ {${minIndent}}`, "gm"), "") : expanded;
+        return boundary + opening + unindented + closing;
+      });
+    }
+    const Unindent = definePlugin({
+      name: "Unindent",
+      description: "Entfernt gemeinsame Einrückungen aus Codeblöcken in deinen Nachrichten.",
+      authors: [{
+        name: "V"
+      }],
+      tags: ["Chat", "Utility"],
+      enabledByDefault: true,
+      onBeforeMessageSend(_channelId, message) {
+        message.content = unindentCodeBlocks(message.content);
+      },
+      onBeforeMessageEdit(_channelId, _messageId, message) {
+        message.content = unindentCodeBlocks(message.content);
+      }
+    });
+    const textReplaceRuleGroups = [{
+      key: "stringRules",
+      label: "Textregel"
+    }, {
+      key: "regexRules",
+      label: "Regex-Regel"
+    }];
+    function parseTextReplaceRegex(value) {
+      const match = value.match(/^(\/)?(.+?)(?:\/([gimsuyv]*))?$/);
+      if (!match) return new RegExp(value);
+      const flags = match[3] === undefined ? "g" : [...new Set(match[3])].join("");
+      return new RegExp(match[2], flags);
+    }
+    function applyTextReplaceRules(content, options) {
+      if (!content) return content;
+      for (const {
+        key
+      } of textReplaceRuleGroups) {
+        const rules = options[key];
+        if (!Array.isArray(rules)) continue;
+        for (const rule of rules) {
+          if (typeof rule?.find !== "string" || !rule.find || typeof rule.replace !== "string") continue;
+          if (rule.onlyIfIncludes && !content.includes(rule.onlyIfIncludes)) continue;
+          const replacement = rule.replace.replaceAll("\\n", "\n");
+          if (key === "stringRules") {
+            const padded = ` ${content} `;
+            const next = padded.replaceAll(rule.find, replacement);
+            if (next !== padded) content = next.replace(/^\s|\s$/g, "");
+          } else {
+            try {
+              content = content.replace(parseTextReplaceRegex(rule.find), replacement);
+            } catch {}
+          }
+        }
+      }
+      return content;
+    }
+    const textReplaceSettings = definePluginSettings({
+      stringRules: {
+        type: OptionType.CUSTOM,
+        default: []
+      },
+      regexRules: {
+        type: OptionType.CUSTOM,
+        default: []
+      }
+    });
+    const TextReplace = definePlugin({
+      name: "TextReplace",
+      description: "Ersetzt beim Senden Text nach deinen Text- und Regex-Regeln.",
+      authors: [{
+        name: "AutumnVN"
+      }, {
+        name: "TheKodeToad"
+      }],
+      tags: ["Chat", "Utility"],
+      settings: textReplaceSettings,
+      onBeforeMessageSend(channelId, message) {
+        if (channelId !== "1102784112584040479") {
+          message.content = applyTextReplaceRules(message.content, textReplaceSettings.store);
+        }
+      }
+    });
+    function listIncludesId(list, id) {
+      return typeof list === "string" && Boolean(id) && list.split(/[\s,]+/).includes(id);
+    }
+    const silentTypingSettings = definePluginSettings({
+      isEnabled: {
+        type: OptionType.BOOLEAN,
+        label: "Tippanzeige unterdrücken",
+        default: true
+      },
+      showTypingIn: {
+        type: OptionType.STRING,
+        label: "Kanäle mit Tippanzeige",
+        description: "Kanal-IDs mit Kommas oder Leerzeichen trennen.",
+        default: ""
+      }
+    });
+    const SilentTyping = definePlugin({
+      name: "SilentTyping",
+      description: "Verbirgt deine Tippanzeige mit optionalen Ausnahmen pro Kanal.",
+      authors: [{
+        name: "V"
+      }, {
+        name: "Rini"
+      }, {
+        name: "ImBanana"
+      }],
+      tags: ["Chat", "Privacy"],
+      settings: silentTypingSettings,
+      start({
+        patcher
+      }) {
+        return patcher.waitFor(["startTyping", "stopTyping"], actions => {
+          patcher.instead("SilentTyping", actions, "startTyping", (args, startTyping) => {
+            const {
+              isEnabled,
+              showTypingIn
+            } = silentTypingSettings.store;
+            if (isEnabled && !listIncludesId(showTypingIn, args[0])) return;
+            return startTyping(...args);
+          });
+        });
+      }
+    });
+    const noReplyMentionSettings = definePluginSettings({
+      shouldPingListed: {
+        type: OptionType.BOOLEAN,
+        label: "Nur gelistete Nutzer oder Rollen erwähnen",
+        default: true
+      },
+      userList: {
+        type: OptionType.STRING,
+        label: "Nutzer-IDs",
+        description: "IDs mit Kommas oder Leerzeichen trennen.",
+        default: ""
+      },
+      roleList: {
+        type: OptionType.STRING,
+        label: "Rollen-IDs",
+        description: "IDs mit Kommas oder Leerzeichen trennen.",
+        default: ""
+      }
+    });
+    const NoReplyMention = definePlugin({
+      name: "NoReplyMention",
+      description: "Legt fest, wer beim Antworten standardmäßig erwähnt wird.",
+      authors: [{
+        name: "DustyAngel47"
+      }, {
+        name: "rae"
+      }, {
+        name: "pylix"
+      }, {
+        name: "outfoxxed"
+      }],
+      tags: ["Chat", "Notifications"],
+      enabledByDefault: true,
+      settings: noReplyMentionSettings,
+      start({
+        patcher
+      }) {
+        return patcher.waitFor(["createPendingReply", "deletePendingReply", "setPendingReplyShouldMention"], actions => {
+          patcher.before("NoReplyMention", actions, "createPendingReply", args => {
+            const reply = args[0];
+            if (!reply?.shouldMention) return;
+            const {
+              userList,
+              roleList,
+              shouldPingListed
+            } = noReplyMentionSettings.store;
+            const userId = reply.message?.author?.id;
+            const guildId = reply.channel?.guild_id;
+            const roles = guildId && userId && roleList ? patcher.findByStoreName("GuildMemberStore")?.getMember(guildId, userId)?.roles : null;
+            const isListed = listIncludesId(userList, userId) || Boolean(roles?.some(roleId => listIncludesId(roleList, roleId)));
+            return [{
+              ...reply,
+              shouldMention: Boolean(shouldPingListed) === isListed
+            }, ...args.slice(1)];
+          });
+        });
+      }
+    });
+
     // --- Module: src/plugins/builtinPlugins.js ---
     /**
-     * VencordForAndroid - Official Vencord Plugins Ported & Adapted for Android
+     * VencordForAndroid plugin catalog and legacy Android plugins
      * Source: https://github.com/Vendicated/Vencord/tree/main/src/plugins
      * Adapted for Android by juli22292
      */
@@ -1585,45 +1912,6 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
           label: "Timer Format",
           choices: ["stopwatch", "human"],
           default: "stopwatch"
-        }
-      }
-    });
-    const ClearURLs = definePlugin({
-      name: "ClearURLs",
-      description: "Removes tracking garbage (utm_*, fbclid, si, igshid) from URLs before sending",
-      authors: [{
-        name: "Vendicated"
-      }, {
-        name: "juli22292"
-      }],
-      tags: ["Privacy", "Chat"],
-      enabledByDefault: true,
-      start({
-        patcher
-      }) {
-        const TRACKING_PARAMS = [/^utm_/i, /^fbclid$/i, /^gclid$/i, /^igshid$/i, /^si$/i, /^mc_eid$/i, /^_hsenc$/i];
-        const cleanTextUrls = content => {
-          if (typeof content !== "string" || !content.includes("http")) return content;
-          return content.replace(/https?:\/\/[^\s<>]+/g, rawUrl => {
-            try {
-              const url = new URL(rawUrl);
-              for (const key of Array.from(url.searchParams.keys())) {
-                if (TRACKING_PARAMS.some(rx => rx.test(key))) url.searchParams.delete(key);
-              }
-              return url.toString();
-            } catch {
-              return rawUrl;
-            }
-          });
-        };
-        const MessageActions = patcher.findByProps("sendMessage", "editMessage");
-        if (MessageActions && typeof MessageActions.sendMessage === "function") {
-          patcher.before("ClearURLs", MessageActions, "sendMessage", args => {
-            if (args[1] && typeof args[1].content === "string") {
-              args[1].content = cleanTextUrls(args[1].content);
-            }
-            return args;
-          });
         }
       }
     });
@@ -2781,42 +3069,6 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
       tags: ["Appearance"],
       enabledByDefault: false
     });
-    const NoReplyMention = definePlugin({
-      name: "NoReplyMention",
-      description: "Automatically sets replies to not ping the target user by default",
-      authors: [{
-        name: "Vendicated"
-      }, {
-        name: "juli22292"
-      }],
-      tags: ["Chat", "Notifications"],
-      enabledByDefault: true,
-      options: {
-        shouldPingListed: {
-          type: "boolean",
-          label: "Ping users in exception list instead of ignoring them",
-          default: true
-        },
-        inverseShiftReply: {
-          type: "boolean",
-          label: "Invert shift key behavior when replying",
-          default: false
-        }
-      },
-      start({
-        patcher
-      }) {
-        const ReplyActions = patcher.findByProps("createPendingReply");
-        if (ReplyActions && typeof ReplyActions.createPendingReply === "function") {
-          patcher.before("NoReplyMention", ReplyActions, "createPendingReply", args => {
-            if (args[0] && typeof args[0] === "object") {
-              args[0].shouldMention = false;
-            }
-            return args;
-          });
-        }
-      }
-    });
     const NoRPC = definePlugin({
       name: "NoRPC",
       description: "Disables Discord's local RPC server entirely",
@@ -3706,42 +3958,6 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
         }
       }
     });
-    const SilentTyping = definePlugin({
-      name: "SilentTyping",
-      description: "Hide that you are typing from others",
-      authors: [{
-        name: "Vendicated"
-      }, {
-        name: "juli22292"
-      }],
-      tags: ["Privacy", "Chat"],
-      enabledByDefault: false,
-      options: {
-        showIcon: {
-          type: "boolean",
-          label: "Show quick toggle icon in the chat bar",
-          default: true
-        },
-        contextMenu: {
-          type: "boolean",
-          label: "Add toggle in chat bar context menu",
-          default: true
-        },
-        isEnabled: {
-          type: "boolean",
-          label: "Currently suppress typing indicator",
-          default: true
-        }
-      },
-      start({
-        patcher
-      }) {
-        const TypingActions = patcher.findByProps("startTyping", "stopTyping");
-        if (TypingActions && typeof TypingActions.startTyping === "function") {
-          patcher.instead("SilentTyping", TypingActions, "startTyping", () => {});
-        }
-      }
-    });
     const SortFriendRequests = definePlugin({
       name: "SortFriendRequests",
       description: "Sorts friend requests by date of receipt",
@@ -3895,25 +4111,6 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
         }
       }
     });
-    const TextReplace = definePlugin({
-      name: "TextReplace",
-      description: "Replace text in your own messages using string or regex rules",
-      authors: [{
-        name: "Vendicated"
-      }, {
-        name: "juli22292"
-      }],
-      tags: ["Chat"],
-      enabledByDefault: false,
-      options: {
-        replaceMode: {
-          type: "select",
-          label: "Rule engine",
-          choices: ["String & Regex", "String Only", "Regex Only"],
-          default: "String & Regex"
-        }
-      }
-    });
     const ThemeAttributes = definePlugin({
       name: "ThemeAttributes",
       description: "Adds data attributes to various elements for CSS theming purposes",
@@ -4032,17 +4229,6 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
           default: true
         }
       }
-    });
-    const Unindent = definePlugin({
-      name: "Unindent",
-      description: "Trims leading indentation from codeblocks",
-      authors: [{
-        name: "Vendicated"
-      }, {
-        name: "juli22292"
-      }],
-      tags: ["Messages", "Chat"],
-      enabledByDefault: true
     });
     const UnlockedAvatarZoom = definePlugin({
       name: "UnlockedAvatarZoom",
@@ -4432,11 +4618,148 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
     const VENCORD_UPDATER = "VENCORD_ANDROID_UPDATER";
     const VENCORD_BACKUP = "VENCORD_ANDROID_BACKUP";
     const VENCORD_MAIN_ROWS = [VENCORD_SETTINGS, VENCORD_PLUGINS, VENCORD_UPDATER, VENCORD_BACKUP];
+    function settingsIcon(name, fallback) {
+      return function NativeSettingsIcon(props) {
+        const React = Patcher.Common.React;
+        const RowIcon = Patcher.findByProps("TableRowIcon", "TableRowGroup")?.TableRowIcon;
+        if (!React || !RowIcon) return null;
+        const source = Patcher.findAssetId(name);
+        if (source != null) return React.createElement(RowIcon, {
+          ...props,
+          source
+        });
+        const generated = Patcher.findByProps(name)?.[name];
+        if (typeof generated === "function" || generated?.$$typeof) {
+          return React.createElement(RowIcon, {
+            ...props,
+            IconComponent: generated
+          });
+        }
+        const fallbackId = fallback && Patcher.findAssetId(fallback);
+        return fallbackId ? React.createElement(RowIcon, {
+          ...props,
+          source: fallbackId
+        }) : null;
+      };
+    }
     function useSettingsValue(read) {
       const React = Patcher.Common.React;
       const [, refresh] = React.useReducer(revision => revision + 1, 0);
       React.useEffect(() => Settings.subscribe(refresh), [refresh]);
       return read();
+    }
+    function renderTextReplaceEditor(React, {
+      TextInput,
+      Button
+    }, View) {
+      const options = Settings.getPluginConfig(TextReplace.name).options;
+      return textReplaceRuleGroups.map(({
+        key,
+        label
+      }) => {
+        const storedRules = Array.isArray(options[key]) ? options[key] : [];
+        const currentRules = () => {
+          const latest = Settings.getPluginConfig(TextReplace.name).options[key];
+          return Array.isArray(latest) ? latest : [];
+        };
+        const save = rules => Settings.setPluginOption(TextReplace.name, key, rules);
+        return React.createElement(View, {
+          key,
+          style: {
+            gap: 12
+          }
+        }, ...storedRules.map((rule, index) => {
+          const update = field => value => save(currentRules().map((entry, position) => position === index ? {
+            ...entry,
+            [field]: value
+          } : entry));
+          let errorMessage;
+          if (key === "regexRules" && rule?.find) {
+            try {
+              parseTextReplaceRegex(rule.find);
+            } catch {
+              errorMessage = "Ungültiger regulärer Ausdruck";
+            }
+          }
+          return React.createElement(View, {
+            key: index,
+            style: {
+              gap: 8
+            }
+          }, React.createElement(TextInput, {
+            label: `${label} ${index + 1} · Suchen`,
+            value: rule?.find ?? "",
+            onChange: update("find"),
+            autoCapitalize: "none",
+            autoCorrect: false,
+            status: errorMessage ? "error" : undefined,
+            errorMessage
+          }), React.createElement(TextInput, {
+            label: "Ersetzen durch",
+            value: rule?.replace ?? "",
+            onChange: update("replace"),
+            autoCapitalize: "none",
+            autoCorrect: false
+          }), React.createElement(TextInput, {
+            label: "Nur anwenden, wenn die Nachricht Folgendes enthält",
+            value: rule?.onlyIfIncludes ?? "",
+            onChange: update("onlyIfIncludes"),
+            autoCapitalize: "none",
+            autoCorrect: false
+          }), React.createElement(Button, {
+            text: `${label} ${index + 1} löschen`,
+            variant: "secondary",
+            size: "sm",
+            onPress: () => save(currentRules().filter((_, position) => position !== index))
+          }));
+        }), React.createElement(Button, {
+          text: `${label} hinzufügen`,
+          variant: "secondary",
+          onPress: () => save([...currentRules(), {
+            find: "",
+            replace: "",
+            onlyIfIncludes: ""
+          }])
+        }));
+      });
+    }
+    function NativePluginFields({
+      textOptions,
+      ruleEditor
+    }) {
+      const React = Patcher.Common.React;
+      const View = Patcher.Common.ReactNative?.View;
+      const design = Patcher.findByProps("TableRowIcon", "TextInput", "Button");
+      const fields = useSettingsValue(() => textOptions.map(({
+        pluginName,
+        name,
+        option
+      }) => ({
+        pluginName,
+        name,
+        option,
+        value: Settings.getPluginConfig(pluginName).options[name] ?? option.default
+      })));
+      if (!View || !design) return null;
+      return React.createElement(View, {
+        style: {
+          padding: 16,
+          gap: 16
+        }
+      }, ...fields.map(({
+        pluginName,
+        name,
+        option,
+        value
+      }) => React.createElement(design.TextInput, {
+        key: name,
+        label: option.label || name,
+        value: typeof value === "string" ? value : option.default,
+        description: option.description,
+        onChange: text => Settings.setPluginOption(pluginName, name, text),
+        autoCapitalize: "none",
+        autoCorrect: false
+      })), ...(ruleEditor ? renderTextReplaceEditor(React, design, View) : []));
     }
     function injectVencordSection(sections) {
       if (!Array.isArray(sections)) return sections;
@@ -4567,38 +4890,57 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
               onValueChange: write
             });
           };
-          const screen = (id, title, rows, parent = null) => {
+          const screen = (id, title, rows, {
+            parent = null,
+            icon,
+            textOptions,
+            ruleEditor
+          } = {}) => {
             const NativeSettingsPage = () => {
               const React = Patcher.Common.React;
-              const ScrollView = Patcher.Common.ReactNative?.ScrollView;
+              const {
+                ScrollView,
+                View
+              } = Patcher.Common.ReactNative ?? {};
               const renderer = Patcher.findByProps("SettingsList", "SearchableSettingsList") ?? Patcher.findByProps("SettingsList");
               const list = renderer?.SettingsList;
-              if (!React || !ScrollView || !list) return null;
+              if (!React || !ScrollView || !View || !list) return null;
               const sections = [{
                 settings: rows
               }];
+              let fields = null;
+              if (textOptions?.length || ruleEditor) {
+                fields = React.createElement(NativePluginFields, {
+                  textOptions,
+                  ruleEditor
+                });
+              }
               return React.createElement(ScrollView, {
                 style: {
                   flex: 1
-                }
-              }, React.createElement(list, {
+                },
+                keyboardShouldPersistTaps: "handled"
+              }, rows.length ? React.createElement(list, {
                 node: {
                   type: "list",
                   sections
                 },
                 sections
-              }));
+              }) : null, fields);
             };
             add(id, title, {
               parent,
               type: "route",
+              IconComponent: icon ? settingsIcon(...icon) : undefined,
               screen: {
                 route: id,
                 getComponent: () => NativeSettingsPage
               }
             });
           };
-          screen(VENCORD_SETTINGS, "Vencord", ["VENCORD_ANDROID_VERSION", "VENCORD_ANDROID_AUTO_UPDATE", "VENCORD_ANDROID_SAFE_MODE"]);
+          screen(VENCORD_SETTINGS, "Vencord", ["VENCORD_ANDROID_VERSION", "VENCORD_ANDROID_AUTO_UPDATE", "VENCORD_ANDROID_SAFE_MODE"], {
+            icon: ["SettingsIcon", "ic_settings_white_24px"]
+          });
           add("VENCORD_ANDROID_VERSION", "Version", {
             parent: VENCORD_SETTINGS,
             type: "static",
@@ -4613,20 +4955,38 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
             toggle(id, VENCORD_PLUGINS, plugin.name, () => PluginManager.isPluginEnabled(plugin.name), enabled => PluginManager.setPluginEnabled(plugin.name, enabled), plugin.description, () => Settings.get("safeMode"));
             pluginRows.push(id);
             const optionIds = [];
+            const textOptions = [];
             const optionsPage = `${id}_OPTIONS`;
             for (const [name, option] of Object.entries(plugin.options)) {
+              if (option.type === OptionType.STRING) {
+                textOptions.push({
+                  pluginName: plugin.name,
+                  name,
+                  option
+                });
+              }
               if (option.type !== "boolean" && option.type !== OptionType.BOOLEAN) continue;
               const optionId = `${optionsPage}_${name}`;
               toggle(optionId, optionsPage, option.label || name, () => Settings.getPluginConfig(plugin.name).options[name] ?? option.default, value => Settings.setPluginOption(plugin.name, name, value), option.description);
               optionIds.push(optionId);
             }
-            if (optionIds.length) {
-              screen(optionsPage, `${plugin.name} · Einstellungen`, optionIds, VENCORD_PLUGINS);
+            const ruleEditor = plugin.name === TextReplace.name;
+            if (optionIds.length || textOptions.length || ruleEditor) {
+              screen(optionsPage, `${plugin.name} · Einstellungen`, optionIds, {
+                parent: VENCORD_PLUGINS,
+                icon: ["SettingsIcon", "ic_settings_white_24px"],
+                textOptions,
+                ruleEditor
+              });
               pluginRows.push(optionsPage);
             }
           }
-          screen(VENCORD_PLUGINS, "Plugins", pluginRows);
-          screen(VENCORD_UPDATER, "Updater", ["VENCORD_ANDROID_CHECK_UPDATE", "VENCORD_ANDROID_OPEN_RELEASE"]);
+          screen(VENCORD_PLUGINS, "Plugins", pluginRows, {
+            icon: ["PuzzlePieceIcon"]
+          });
+          screen(VENCORD_UPDATER, "Updater", ["VENCORD_ANDROID_CHECK_UPDATE", "VENCORD_ANDROID_OPEN_RELEASE"], {
+            icon: ["DownloadIcon", "ic_download_24px"]
+          });
           add("VENCORD_ANDROID_CHECK_UPDATE", "Nach Updates suchen", {
             parent: VENCORD_UPDATER,
             type: "pressable",
@@ -4652,13 +5012,39 @@ function _toPrimitive(t, e) { if ("object" != typeof t || !t) return t; var r; i
               });
             }
           });
-          screen(VENCORD_BACKUP, "Backup & Reset", ["VENCORD_ANDROID_COPY_SETTINGS", "VENCORD_ANDROID_RESET"]);
+          screen(VENCORD_BACKUP, "Backup & Restore", ["VENCORD_ANDROID_COPY_SETTINGS", "VENCORD_ANDROID_RESTORE_SETTINGS", "VENCORD_ANDROID_RESET"], {
+            icon: ["RefreshIcon", "ic_sync_24px"]
+          });
           add("VENCORD_ANDROID_COPY_SETTINGS", "Einstellungen kopieren", {
             parent: VENCORD_BACKUP,
             type: "pressable",
             onPress: () => {
               const clipboard = Patcher.Common.Clipboard;
               if (typeof clipboard?.setString === "function") clipboard.setString(Settings.exportJSON());else Patcher.Common.ReactNative?.Alert?.alert("Vencord", "Die Zwischenablage ist nicht verfügbar.");
+            }
+          });
+          add("VENCORD_ANDROID_RESTORE_SETTINGS", "Einstellungen aus der Zwischenablage wiederherstellen", {
+            parent: VENCORD_BACKUP,
+            type: "pressable",
+            onPress: () => {
+              const alert = Patcher.Common.ReactNative?.Alert?.alert;
+              const clipboard = Patcher.Common.Clipboard;
+              if (!clipboard?.getString) return alert?.("Vencord", "Die Zwischenablage ist nicht verfügbar.");
+              alert?.("Vencord", "Die aktuellen Vencord-Einstellungen durch die Sicherung ersetzen?", [{
+                text: "Abbrechen",
+                style: "cancel"
+              }, {
+                text: "Wiederherstellen",
+                onPress: async () => {
+                  try {
+                    Settings.importJSON(await clipboard.getString());
+                    PluginManager.reloadAllEnabled();
+                    alert("Vencord", "Die Einstellungen wurden wiederhergestellt.");
+                  } catch {
+                    alert("Vencord", "Die Zwischenablage enthält keine lesbare Sicherung.");
+                  }
+                }
+              }]);
             }
           });
           add("VENCORD_ANDROID_RESET", "Plugins und Einstellungen zurücksetzen", {

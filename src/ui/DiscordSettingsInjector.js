@@ -2,6 +2,7 @@ import { Settings, OptionType } from "../core/Settings.js";
 import { PluginManager } from "../core/PluginManager.js";
 import { Updater, CORE_VERSION, CORE_REPO, INSTALLER_REPO } from "../core/Updater.js";
 import { Patcher } from "../core/Patcher.js";
+import { TextReplace, parseTextReplaceRegex, textReplaceRuleGroups } from "../plugins/officialChatPlugins.js";
 
 const VENCORD_SETTINGS = "VENCORD_ANDROID_SETTINGS";
 const VENCORD_PLUGINS = "VENCORD_ANDROID_PLUGINS";
@@ -9,11 +10,108 @@ const VENCORD_UPDATER = "VENCORD_ANDROID_UPDATER";
 const VENCORD_BACKUP = "VENCORD_ANDROID_BACKUP";
 const VENCORD_MAIN_ROWS = [VENCORD_SETTINGS, VENCORD_PLUGINS, VENCORD_UPDATER, VENCORD_BACKUP];
 
+function settingsIcon(name, fallback) {
+    return function NativeSettingsIcon(props) {
+        const React = Patcher.Common.React;
+        const RowIcon = Patcher.findByProps("TableRowIcon", "TableRowGroup")?.TableRowIcon;
+        if (!React || !RowIcon) return null;
+        const source = Patcher.findAssetId(name);
+        if (source != null) return React.createElement(RowIcon, { ...props, source });
+        const generated = Patcher.findByProps(name)?.[name];
+        if (typeof generated === "function" || generated?.$$typeof) {
+            return React.createElement(RowIcon, { ...props, IconComponent: generated });
+        }
+        const fallbackId = fallback && Patcher.findAssetId(fallback);
+        return fallbackId ? React.createElement(RowIcon, { ...props, source: fallbackId }) : null;
+    };
+}
+
 function useSettingsValue(read) {
     const React = Patcher.Common.React;
     const [, refresh] = React.useReducer((revision) => revision + 1, 0);
     React.useEffect(() => Settings.subscribe(refresh), [refresh]);
     return read();
+}
+
+function renderTextReplaceEditor(React, { TextInput, Button }, View) {
+    const options = Settings.getPluginConfig(TextReplace.name).options;
+    return textReplaceRuleGroups.map(({ key, label }) => {
+        const storedRules = Array.isArray(options[key]) ? options[key] : [];
+        const currentRules = () => {
+            const latest = Settings.getPluginConfig(TextReplace.name).options[key];
+            return Array.isArray(latest) ? latest : [];
+        };
+        const save = (rules) => Settings.setPluginOption(TextReplace.name, key, rules);
+        return React.createElement(View, { key, style: { gap: 12 } },
+            ...storedRules.map((rule, index) => {
+                const update = (field) => (value) => save(currentRules().map((entry, position) =>
+                    position === index ? { ...entry, [field]: value } : entry));
+                let errorMessage;
+                if (key === "regexRules" && rule?.find) {
+                    try {
+                        parseTextReplaceRegex(rule.find);
+                    } catch {
+                        errorMessage = "Ungültiger regulärer Ausdruck";
+                    }
+                }
+                return React.createElement(View, { key: index, style: { gap: 8 } },
+                    React.createElement(TextInput, {
+                        label: `${label} ${index + 1} · Suchen`,
+                        value: rule?.find ?? "",
+                        onChange: update("find"),
+                        autoCapitalize: "none",
+                        autoCorrect: false,
+                        status: errorMessage ? "error" : undefined,
+                        errorMessage
+                    }),
+                    React.createElement(TextInput, {
+                        label: "Ersetzen durch",
+                        value: rule?.replace ?? "",
+                        onChange: update("replace"),
+                        autoCapitalize: "none",
+                        autoCorrect: false
+                    }),
+                    React.createElement(TextInput, {
+                        label: "Nur anwenden, wenn die Nachricht Folgendes enthält",
+                        value: rule?.onlyIfIncludes ?? "",
+                        onChange: update("onlyIfIncludes"),
+                        autoCapitalize: "none",
+                        autoCorrect: false
+                    }),
+                    React.createElement(Button, {
+                        text: `${label} ${index + 1} löschen`,
+                        variant: "secondary",
+                        size: "sm",
+                        onPress: () => save(currentRules().filter((_, position) => position !== index))
+                    }));
+            }),
+            React.createElement(Button, {
+                text: `${label} hinzufügen`,
+                variant: "secondary",
+                onPress: () => save([...currentRules(), { find: "", replace: "", onlyIfIncludes: "" }])
+            }));
+    });
+}
+
+function NativePluginFields({ textOptions, ruleEditor }) {
+    const React = Patcher.Common.React;
+    const View = Patcher.Common.ReactNative?.View;
+    const design = Patcher.findByProps("TableRowIcon", "TextInput", "Button");
+    const fields = useSettingsValue(() => textOptions.map(({ pluginName, name, option }) => ({
+        pluginName, name, option, value: Settings.getPluginConfig(pluginName).options[name] ?? option.default
+    })));
+    if (!View || !design) return null;
+    return React.createElement(View, { style: { padding: 16, gap: 16 } },
+        ...fields.map(({ pluginName, name, option, value }) => React.createElement(design.TextInput, {
+            key: name,
+            label: option.label || name,
+            value: typeof value === "string" ? value : option.default,
+            description: option.description,
+            onChange: (text) => Settings.setPluginOption(pluginName, name, text),
+            autoCapitalize: "none",
+            autoCorrect: false
+        })),
+        ...(ruleEditor ? renderTextReplaceEditor(React, design, View) : []));
 }
 
 function injectVencordSection(sections) {
@@ -139,25 +237,32 @@ export class DiscordSettingsInjector {
                 onValueChange: write
             });
         };
-        const screen = (id, title, rows, parent = null) => {
+        const screen = (id, title, rows, { parent = null, icon, textOptions, ruleEditor } = {}) => {
             const NativeSettingsPage = () => {
                 const React = Patcher.Common.React;
-                const ScrollView = Patcher.Common.ReactNative?.ScrollView;
+                const { ScrollView, View } = Patcher.Common.ReactNative ?? {};
                 const renderer = Patcher.findByProps("SettingsList", "SearchableSettingsList") ?? Patcher.findByProps("SettingsList");
                 const list = renderer?.SettingsList;
-                if (!React || !ScrollView || !list) return null;
+                if (!React || !ScrollView || !View || !list) return null;
                 const sections = [{ settings: rows }];
-                return React.createElement(ScrollView, { style: { flex: 1 } },
-                    React.createElement(list, { node: { type: "list", sections }, sections }));
+                let fields = null;
+                if (textOptions?.length || ruleEditor) {
+                    fields = React.createElement(NativePluginFields, { textOptions, ruleEditor });
+                }
+                return React.createElement(ScrollView, { style: { flex: 1 }, keyboardShouldPersistTaps: "handled" },
+                    rows.length ? React.createElement(list, { node: { type: "list", sections }, sections }) : null,
+                    fields);
             };
             add(id, title, {
                 parent,
                 type: "route",
+                IconComponent: icon ? settingsIcon(...icon) : undefined,
                 screen: { route: id, getComponent: () => NativeSettingsPage }
             });
         };
 
-        screen(VENCORD_SETTINGS, "Vencord", ["VENCORD_ANDROID_VERSION", "VENCORD_ANDROID_AUTO_UPDATE", "VENCORD_ANDROID_SAFE_MODE"]);
+        screen(VENCORD_SETTINGS, "Vencord", ["VENCORD_ANDROID_VERSION", "VENCORD_ANDROID_AUTO_UPDATE", "VENCORD_ANDROID_SAFE_MODE"],
+            { icon: ["SettingsIcon", "ic_settings_white_24px"] });
         add("VENCORD_ANDROID_VERSION", "Version", {
             parent: VENCORD_SETTINGS,
             type: "static",
@@ -180,8 +285,12 @@ export class DiscordSettingsInjector {
             pluginRows.push(id);
 
             const optionIds = [];
+            const textOptions = [];
             const optionsPage = `${id}_OPTIONS`;
             for (const [name, option] of Object.entries(plugin.options)) {
+                if (option.type === OptionType.STRING) {
+                    textOptions.push({ pluginName: plugin.name, name, option });
+                }
                 if (option.type !== "boolean" && option.type !== OptionType.BOOLEAN) continue;
                 const optionId = `${optionsPage}_${name}`;
                 toggle(optionId, optionsPage, option.label || name,
@@ -190,14 +299,17 @@ export class DiscordSettingsInjector {
                     option.description);
                 optionIds.push(optionId);
             }
-            if (optionIds.length) {
-                screen(optionsPage, `${plugin.name} · Einstellungen`, optionIds, VENCORD_PLUGINS);
+            const ruleEditor = plugin.name === TextReplace.name;
+            if (optionIds.length || textOptions.length || ruleEditor) {
+                screen(optionsPage, `${plugin.name} · Einstellungen`, optionIds,
+                    { parent: VENCORD_PLUGINS, icon: ["SettingsIcon", "ic_settings_white_24px"], textOptions, ruleEditor });
                 pluginRows.push(optionsPage);
             }
         }
-        screen(VENCORD_PLUGINS, "Plugins", pluginRows);
+        screen(VENCORD_PLUGINS, "Plugins", pluginRows, { icon: ["PuzzlePieceIcon"] });
 
-        screen(VENCORD_UPDATER, "Updater", ["VENCORD_ANDROID_CHECK_UPDATE", "VENCORD_ANDROID_OPEN_RELEASE"]);
+        screen(VENCORD_UPDATER, "Updater", ["VENCORD_ANDROID_CHECK_UPDATE", "VENCORD_ANDROID_OPEN_RELEASE"],
+            { icon: ["DownloadIcon", "ic_download_24px"] });
         add("VENCORD_ANDROID_CHECK_UPDATE", "Nach Updates suchen", {
             parent: VENCORD_UPDATER,
             type: "pressable",
@@ -220,7 +332,9 @@ export class DiscordSettingsInjector {
             }
         });
 
-        screen(VENCORD_BACKUP, "Backup & Reset", ["VENCORD_ANDROID_COPY_SETTINGS", "VENCORD_ANDROID_RESET"]);
+        screen(VENCORD_BACKUP, "Backup & Restore",
+            ["VENCORD_ANDROID_COPY_SETTINGS", "VENCORD_ANDROID_RESTORE_SETTINGS", "VENCORD_ANDROID_RESET"],
+            { icon: ["RefreshIcon", "ic_sync_24px"] });
         add("VENCORD_ANDROID_COPY_SETTINGS", "Einstellungen kopieren", {
             parent: VENCORD_BACKUP,
             type: "pressable",
@@ -228,6 +342,27 @@ export class DiscordSettingsInjector {
                 const clipboard = Patcher.Common.Clipboard;
                 if (typeof clipboard?.setString === "function") clipboard.setString(Settings.exportJSON());
                 else Patcher.Common.ReactNative?.Alert?.alert("Vencord", "Die Zwischenablage ist nicht verfügbar.");
+            }
+        });
+        add("VENCORD_ANDROID_RESTORE_SETTINGS", "Einstellungen aus der Zwischenablage wiederherstellen", {
+            parent: VENCORD_BACKUP,
+            type: "pressable",
+            onPress: () => {
+                const alert = Patcher.Common.ReactNative?.Alert?.alert;
+                const clipboard = Patcher.Common.Clipboard;
+                if (!clipboard?.getString) return alert?.("Vencord", "Die Zwischenablage ist nicht verfügbar.");
+                alert?.("Vencord", "Die aktuellen Vencord-Einstellungen durch die Sicherung ersetzen?", [
+                    { text: "Abbrechen", style: "cancel" },
+                    { text: "Wiederherstellen", onPress: async () => {
+                        try {
+                            Settings.importJSON(await clipboard.getString());
+                            PluginManager.reloadAllEnabled();
+                            alert("Vencord", "Die Einstellungen wurden wiederhergestellt.");
+                        } catch {
+                            alert("Vencord", "Die Zwischenablage enthält keine lesbare Sicherung.");
+                        }
+                    } }
+                ]);
             }
         });
         add("VENCORD_ANDROID_RESET", "Plugins und Einstellungen zurücksetzen", {

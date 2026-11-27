@@ -40,9 +40,10 @@ class PluginManagerService {
         this.registry = new Map();
         this.running = new Set();
         this.fluxUnsubscribers = new Map();
+        this.pluginCleanups = new Map();
         this.preSendListeners = new Map();
         this.preEditListeners = new Map();
-        this._messageEventsHooked = false;
+        this.messageEventWaiters = new Map();
     }
 
     register(plugin) {
@@ -78,7 +79,7 @@ class PluginManagerService {
 
     getAllPlugins() {
         return Array.from(this.registry.values()).map((plugin) => {
-            const cfg = Settings.getPluginConfig(plugin.name);
+            const cfg = Settings.getPluginConfig(plugin.name, { enabledByDefault: plugin.enabledByDefault });
             const available = this._isAvailable(plugin);
             return {
                 ...plugin,
@@ -102,46 +103,44 @@ class PluginManagerService {
         const plugin = this.getPlugin(name);
         if (!plugin || !this._isAvailable(plugin)) return false;
         if (plugin.required || plugin.isDependency) return true;
-        return Boolean(Settings.getPluginConfig(name).enabled);
+        return Boolean(Settings.getPluginConfig(name, { enabledByDefault: plugin.enabledByDefault }).enabled);
     }
 
     isEnabled(name) {
         return this.isPluginEnabled(name);
     }
 
-    _ensureMessageEventsHooked() {
-        if (this._messageEventsHooked) return;
-        const MessageActions = Patcher.findByProps("sendMessage", "editMessage");
-        if (!MessageActions) return;
-
-        this._messageEventsHooked = true;
-        Patcher.before("VencordMessageEventsAPI", MessageActions, "sendMessage", (args) => {
-            const [channelId, messageObj] = args;
-            if (messageObj && typeof messageObj === "object") {
-                for (const listener of this.preSendListeners.values()) {
+    _ensureMessageEventHooked(method, marker, listeners, messageIndex) {
+        if (this.messageEventWaiters.has(method)) return;
+        const id = `VencordMessageEventsAPI.${method}`;
+        const cancelWait = Patcher.waitFor([method, marker], (actions) => {
+            Patcher.before(id, actions, method, (args) => {
+                if (!listeners.size || typeof args[messageIndex]?.content !== "string") return;
+                const message = { ...args[messageIndex] };
+                const context = args.slice(0, messageIndex);
+                for (const listener of listeners.values()) {
                     try {
-                        listener(channelId, messageObj);
-                    } catch (e) {
-                        console.error("[VencordForAndroid:MessageEventsAPI] PreSend listener error:", e);
+                        listener(...context, message);
+                    } catch (error) {
+                        console.error(`[VencordForAndroid:MessageEventsAPI] ${method} listener:`, error);
                     }
                 }
-            }
-            return args;
-        });
-
-        Patcher.before("VencordMessageEventsAPI", MessageActions, "editMessage", (args) => {
-            const [channelId, messageId, messageObj] = args;
-            if (messageObj && typeof messageObj === "object") {
-                for (const listener of this.preEditListeners.values()) {
-                    try {
-                        listener(channelId, messageId, messageObj);
-                    } catch (e) {
-                        console.error("[VencordForAndroid:MessageEventsAPI] PreEdit listener error:", e);
-                    }
+                if (message.content !== args[messageIndex].content) {
+                    args[messageIndex] = message;
+                    return args;
                 }
-            }
-            return args;
+            });
         });
+        this.messageEventWaiters.set(method, () => {
+            cancelWait();
+            Patcher.unpatchAll(id);
+        });
+    }
+
+    _releaseMessageEvent(method, listeners) {
+        if (listeners.size) return;
+        this.messageEventWaiters.get(method)?.();
+        this.messageEventWaiters.delete(method);
     }
 
     initPluginManager() {
@@ -199,7 +198,8 @@ class PluginManagerService {
             };
 
             if (typeof plugin.start === "function") {
-                plugin.start(context);
+                const cleanup = plugin.start(context);
+                if (typeof cleanup === "function") this.pluginCleanups.set(plugin.name, cleanup);
             }
 
             // Auto-subscribe FluxDispatcher events like official Vencord
@@ -219,13 +219,13 @@ class PluginManagerService {
             }
 
             if (typeof plugin.onBeforeMessageSend === "function") {
-                this._ensureMessageEventsHooked();
                 this.preSendListeners.set(plugin.name, plugin.onBeforeMessageSend.bind(plugin));
+                this._ensureMessageEventHooked("sendMessage", "getSendMessageOptionsForReply", this.preSendListeners, 1);
             }
 
             if (typeof plugin.onBeforeMessageEdit === "function") {
-                this._ensureMessageEventsHooked();
                 this.preEditListeners.set(plugin.name, plugin.onBeforeMessageEdit.bind(plugin));
+                this._ensureMessageEventHooked("editMessage", "deleteMessage", this.preEditListeners, 2);
             }
 
             plugin.started = true;
@@ -241,10 +241,12 @@ class PluginManagerService {
 
     _disposePlugin(plugin) {
         try {
+            this.pluginCleanups.get(plugin.name)?.();
             plugin.stop?.({ patcher: Patcher });
         } catch (err) {
             console.error(`[VencordForAndroid:PluginManager] Failed to stop ${plugin.name}:`, err);
         }
+        this.pluginCleanups.delete(plugin.name);
         Patcher.unpatchAll(plugin.name);
         const unsubs = this.fluxUnsubscribers.get(plugin.name) || [];
         for (const unsubscribe of unsubs) {
@@ -257,6 +259,8 @@ class PluginManagerService {
         this.fluxUnsubscribers.delete(plugin.name);
         this.preSendListeners.delete(plugin.name);
         this.preEditListeners.delete(plugin.name);
+        this._releaseMessageEvent("sendMessage", this.preSendListeners);
+        this._releaseMessageEvent("editMessage", this.preEditListeners);
         plugin.started = false;
         this.running.delete(plugin.name);
     }
@@ -292,6 +296,14 @@ class PluginManagerService {
         }
     }
 
+    reloadAllEnabled() {
+        for (const name of this.running) {
+            const plugin = this.getPlugin(name);
+            if (!plugin.required) this._disposePlugin(plugin);
+        }
+        this.startAllEnabled();
+    }
+
     stopAll() {
         for (const name of Array.from(this.running)) {
             const p = this.getPlugin(name);
@@ -306,7 +318,6 @@ class PluginManagerService {
             this._disposePlugin(this.getPlugin(name));
         }
         Patcher.unpatchAll();
-        this._messageEventsHooked = false;
         Settings.wipeAll();
         this.registry.clear();
         for (const name of Object.keys(this.plugins)) delete this.plugins[name];

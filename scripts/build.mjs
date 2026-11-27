@@ -30,6 +30,7 @@ const moduleOrder = [
     "src/core/Patcher.js",
     "src/core/PluginManager.js",
     "src/core/Updater.js",
+    "src/plugins/officialChatPlugins.js",
     "src/plugins/builtinPlugins.js",
     "src/ui/DiscordSettingsInjector.js",
     "src/index.js"
@@ -98,7 +99,7 @@ const manifest = {
     sha256,
     pluginCount: BUILTIN_PLUGINS.length,
     builtAt,
-    changelog: `v${version}: Der Vencord-Abschnitt wird auch in der durchsuchbaren Einstellungsübersicht von Discord 355.10 eingebunden.`
+    changelog: `v${version}: Native Symbole, fünf offizielle Plugin-Portierungen und Wiederherstellung aus der Zwischenablage.`
 };
 
 fs.writeFileSync(path.join(distDir, "manifest.json"), JSON.stringify(manifest, null, 2), "utf8");

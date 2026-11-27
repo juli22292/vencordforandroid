@@ -3,6 +3,9 @@ import test from "node:test";
 
 import { Patcher } from "../src/core/Patcher.js";
 import { DiscordSettingsInjector } from "../src/ui/DiscordSettingsInjector.js";
+import { PluginManager } from "../src/core/PluginManager.js";
+import { Settings } from "../src/core/Settings.js";
+import { TextReplace } from "../src/plugins/officialChatPlugins.js";
 
 test("inserts Vencord into the memoized Discord 355.10 settings overview", () => {
     const injector = new DiscordSettingsInjector();
@@ -62,5 +65,54 @@ test("inserts Vencord into the memoized Discord 355.10 settings overview", () =>
         injector.unpatchAll();
         if (originalDefine) Object.defineProperty(globalThis, "__d", originalDefine);
         else delete globalThis.__d;
+    }
+});
+
+test("native settings rows use Discord icons and open a working TextReplace editor", () => {
+    const injector = new DiscordSettingsInjector();
+    const originalFind = Patcher.findByProps;
+    const originalGetAsset = Patcher.findAssetId;
+    const native = { View: "View", ScrollView: "ScrollView", Text: "Text", TouchableOpacity: "TouchableOpacity" };
+    const createElement = (type, props, ...children) => ({ type, props, children });
+    const react = { createElement, useReducer: () => [0, () => {}], useEffect() {} };
+    const design = { TableRowIcon: "TableRowIcon", TableRowGroup: "TableRowGroup", TextInput: "TextInput", Button: "Button" };
+    const assets = ["SettingsIcon", "PuzzlePieceIcon", "DownloadIcon", "RefreshIcon"];
+
+    try {
+        Patcher._commonCache = { React: react, ReactNative: native };
+        Patcher.findByProps = (name) => {
+            if (name === "TableRowIcon") return design;
+            if (name === "SettingsList") return { SettingsList: "SettingsList" };
+            return null;
+        };
+        Patcher.findAssetId = (name) => (assets.indexOf(name) + 1) || null;
+        PluginManager.register(TextReplace);
+        const items = injector.createItems();
+        const routes = ["SETTINGS", "PLUGINS", "UPDATER", "BACKUP"];
+        routes.forEach((id, index) => {
+            const row = items[`VENCORD_ANDROID_${id}`];
+            const icon = row.IconComponent({});
+            assert.equal(icon.type, "TableRowIcon");
+            assert.equal(icon.props.source, index + 1);
+        });
+        assert.equal(items.VENCORD_ANDROID_BACKUP.useTitle(), "Backup & Restore");
+        assert.equal(items.VENCORD_ANDROID_RESTORE_SETTINGS.type, "pressable");
+
+        const page = items.VENCORD_ANDROID_PLUGIN_TextReplace_OPTIONS.screen.getComponent()();
+        const fields = page.children[1];
+        const read = () => fields.type(fields.props);
+        read().children[0].children[0].props.onPress();
+        let rule = read().children[0].children[0];
+        rule.children[0].props.onChange("hello");
+        rule.children[1].props.onChange("hallo");
+        assert.deepEqual(Settings.getPluginConfig("TextReplace").options.stringRules,
+            [{ find: "hello", replace: "hallo", onlyIfIncludes: "" }]);
+        rule.children[3].props.onPress();
+        assert.deepEqual(Settings.getPluginConfig("TextReplace").options.stringRules, []);
+    } finally {
+        Patcher.findByProps = originalFind;
+        Patcher.findAssetId = originalGetAsset;
+        Patcher._commonCache = {};
+        PluginManager.uninstallAll();
     }
 });
