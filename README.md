@@ -6,20 +6,12 @@
 Nach der Installation über die `VencordAndroidApp` erscheint in den **Discord-Einstellungen** der neue Bereich **`VencordForAndroid`**:
 - **Einstellungen:** Allgemeine Optionen, Auto-Updater, Safe Mode & Entwicklermodus
 - **Plugins:** Eigene und integrierte Plugins direkt in Discord per Schalter aktivieren/deaktivieren
-- **Updater:** Direkte In-App-Updates aus diesem Repository (`juli22292/vencordforandroid`)
+- **Updater:** Versionsprüfung und Release-Links. Bei einem privaten Repository ist für den Download eine GitHub-Anmeldung im Browser nötig. Die Installer-App liefert das Core-Bundle mit.
 - **Backup & Reset:** Einstellungen sichern oder alle Plugins zurücksetzen
 
-## Integrierte Plugins (v0.0.1)
-- `AlwaysAnimate`
-- `ClearURLs`
-- `FakeNitro`
-- `MessageLogger`
-- `NoReplyMention`
-- `SilentTyping`
-- `ShowHiddenChannels`
-- `ReadAllNotificationsButton`
-- `Translate`
-- `BetterTimestamps`
+## Plugin-Katalog
+
+Der Katalog enthält 170 Definitionen. Einträge ohne mobile Implementierung sind als „Noch nicht für Android portiert“ gekennzeichnet.
 
 ## Build
 ```bash

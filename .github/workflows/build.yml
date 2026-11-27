@@ -20,6 +20,9 @@ jobs:
       - name: Build Bundle
         run: npm run build
 
+      - name: Check Bundle Syntax
+        run: node --check dist/vencordforandroid.js
+
       - name: Upload Bundle Artifact
         uses: actions/upload-artifact@v4
         with:

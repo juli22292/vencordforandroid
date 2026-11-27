@@ -36,7 +36,7 @@ export function definePlugin(definition) {
 
 class PluginManagerService {
     constructor() {
-        this.plugins = {};
+        this.plugins = Object.create(null);
         this.registry = new Map();
         this.running = new Set();
         this.fluxUnsubscribers = new Map();
@@ -57,7 +57,9 @@ class PluginManagerService {
         const defaultOptions = {};
         if (plugin.options) {
             for (const [key, opt] of Object.entries(plugin.options)) {
-                defaultOptions[key] = opt.default;
+                defaultOptions[key] = opt.default !== undefined
+                    ? opt.default
+                    : (Array.isArray(opt.options) ? opt.options.find((option) => option.default)?.value : undefined);
             }
         }
 
@@ -77,9 +79,11 @@ class PluginManagerService {
     getAllPlugins() {
         return Array.from(this.registry.values()).map((plugin) => {
             const cfg = Settings.getPluginConfig(plugin.name);
+            const available = this._isAvailable(plugin);
             return {
                 ...plugin,
-                enabled: Boolean(plugin.required || cfg.enabled),
+                available,
+                enabled: available && Boolean(plugin.required || cfg.enabled),
                 running: this.running.has(plugin.name),
                 optionValues: { ...(cfg.options || {}) }
             };
@@ -90,9 +94,13 @@ class PluginManagerService {
         return this.registry.get(name) || null;
     }
 
+    _isAvailable(plugin) {
+        return Boolean(plugin.required || plugin.start || plugin.flux || plugin.onBeforeMessageSend || plugin.onBeforeMessageEdit);
+    }
+
     isPluginEnabled(name) {
         const plugin = this.getPlugin(name);
-        if (!plugin) return false;
+        if (!plugin || !this._isAvailable(plugin)) return false;
         if (plugin.required || plugin.isDependency) return true;
         return Boolean(Settings.getPluginConfig(name).enabled);
     }
@@ -140,6 +148,7 @@ class PluginManagerService {
         // Resolve dependencies and register declarative patches for enabled plugins
         for (const plugin of this.registry.values()) {
             if (!this.isPluginEnabled(plugin.name)) continue;
+            if (Settings.get("safeMode") && !plugin.required) continue;
 
             if (Array.isArray(plugin.dependencies)) {
                 for (const depName of plugin.dependencies) {
@@ -176,7 +185,8 @@ class PluginManagerService {
 
     startPlugin(nameOrPlugin) {
         const plugin = typeof nameOrPlugin === "string" ? this.getPlugin(nameOrPlugin) : nameOrPlugin;
-        if (!plugin || this.running.has(plugin.name)) return false;
+        if (!plugin || !this._isAvailable(plugin) || this.running.has(plugin.name)) return false;
+        if (Settings.get("safeMode") && !plugin.required) return false;
 
         try {
             const cfg = Settings.getPluginConfig(plugin.name);
@@ -195,8 +205,9 @@ class PluginManagerService {
             // Auto-subscribe FluxDispatcher events like official Vencord
             if (plugin.flux && typeof plugin.flux === "object") {
                 const FluxDispatcher = Patcher.Common.FluxDispatcher;
-                if (FluxDispatcher && typeof FluxDispatcher.subscribe === "function") {
+                if (typeof FluxDispatcher?.subscribe === "function" && typeof FluxDispatcher.unsubscribe === "function") {
                     const unsubs = [];
+                    this.fluxUnsubscribers.set(plugin.name, unsubs);
                     for (const [eventName, handler] of Object.entries(plugin.flux)) {
                         if (typeof handler === "function") {
                             const bound = handler.bind(plugin);
@@ -204,7 +215,6 @@ class PluginManagerService {
                             unsubs.push(() => FluxDispatcher.unsubscribe(eventName, bound));
                         }
                     }
-                    this.fluxUnsubscribers.set(plugin.name, unsubs);
                 }
             }
 
@@ -224,38 +234,40 @@ class PluginManagerService {
             return true;
         } catch (err) {
             console.error(`[VencordForAndroid:PluginManager] Failed to start ${plugin.name}:`, err);
+            this._disposePlugin(plugin);
             return false;
         }
+    }
+
+    _disposePlugin(plugin) {
+        try {
+            plugin.stop?.({ patcher: Patcher });
+        } catch (err) {
+            console.error(`[VencordForAndroid:PluginManager] Failed to stop ${plugin.name}:`, err);
+        }
+        Patcher.unpatchAll(plugin.name);
+        const unsubs = this.fluxUnsubscribers.get(plugin.name) || [];
+        for (const unsubscribe of unsubs) {
+            try {
+                unsubscribe();
+            } catch (err) {
+                console.error(`[VencordForAndroid:PluginManager] Failed to unsubscribe ${plugin.name}:`, err);
+            }
+        }
+        this.fluxUnsubscribers.delete(plugin.name);
+        this.preSendListeners.delete(plugin.name);
+        this.preEditListeners.delete(plugin.name);
+        plugin.started = false;
+        this.running.delete(plugin.name);
     }
 
     stopPlugin(nameOrPlugin) {
         const plugin = typeof nameOrPlugin === "string" ? this.getPlugin(nameOrPlugin) : nameOrPlugin;
         if (!plugin || plugin.required) return false;
 
-        try {
-            if (this.running.has(plugin.name)) {
-                if (typeof plugin.stop === "function") {
-                    plugin.stop({ patcher: Patcher });
-                }
-                Patcher.unpatchAll(plugin.name);
-
-                const unsubs = this.fluxUnsubscribers.get(plugin.name);
-                if (unsubs) {
-                    for (const u of unsubs) u();
-                    this.fluxUnsubscribers.delete(plugin.name);
-                }
-
-                this.preSendListeners.delete(plugin.name);
-                this.preEditListeners.delete(plugin.name);
-                plugin.started = false;
-                this.running.delete(plugin.name);
-            }
-            Settings.setPluginEnabled(plugin.name, false);
-            return true;
-        } catch (err) {
-            console.error(`[VencordForAndroid:PluginManager] Failed to stop ${plugin.name}:`, err);
-            return false;
-        }
+        if (this.running.has(plugin.name)) this._disposePlugin(plugin);
+        Settings.setPluginEnabled(plugin.name, false);
+        return true;
     }
 
     togglePlugin(name) {
@@ -276,21 +288,13 @@ class PluginManagerService {
 
     uninstallAll() {
         for (const name of Array.from(this.running)) {
-            const p = this.getPlugin(name);
-            if (p && typeof p.stop === "function") {
-                try {
-                    p.stop({ patcher: Patcher });
-                } catch (_) {}
-            }
-            Patcher.unpatchAll(name);
+            this._disposePlugin(this.getPlugin(name));
         }
-        this.running.clear();
-        this.fluxUnsubscribers.clear();
-        this.preSendListeners.clear();
-        this.preEditListeners.clear();
         Patcher.unpatchAll();
+        this._messageEventsHooked = false;
         Settings.wipeAll();
         this.registry.clear();
+        for (const name of Object.keys(this.plugins)) delete this.plugins[name];
     }
 }
 

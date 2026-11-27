@@ -1,5 +1,5 @@
 /**
- * Build script for VencordForAndroid v0.0.7
+ * Build script for VencordForAndroid
  * Compiles the Hermes/React-Native compatible bundle dist/vencordforandroid.js and dist/manifest.json
  * for direct injection into the official Discord Android app (com.discord) via LSPatch / Xposed.
  */
@@ -9,15 +9,21 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { BUILTIN_PLUGINS } from "../src/plugins/builtinPlugins.js";
+import { CORE_VERSION } from "../src/core/Version.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
 const distDir = path.join(rootDir, "dist");
 
 const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, "package.json"), "utf8"));
-const version = pkg.version || "0.0.7";
+const version = pkg.version;
+if (version !== CORE_VERSION || !/^\d+\.\d+\.\d+$/.test(version)) {
+    throw new Error("package.json and the runtime must declare the same release version.");
+}
+const builtAt = new Date().toISOString();
 
 const moduleOrder = [
+    "src/core/Version.js",
     "src/core/Settings.js",
     "src/core/Patcher.js",
     "src/core/PluginManager.js",
@@ -45,8 +51,8 @@ for (const relPath of moduleOrder) {
 const banner = `/**
  * VencordForAndroid v${version} (React Native / Hermes Bundle for com.discord)
  * Repository: https://github.com/juli22292/vencordforandroid
- * Official Vencord Plugins adapted for Android (${BUILTIN_PLUGINS.length} plugins)
- * Built: ${new Date().toISOString()}
+ * Includes ${BUILTIN_PLUGINS.length} plugin definitions
+ * Built: ${builtAt}
  */
 (function (global) {
 "use strict";
@@ -67,8 +73,8 @@ const manifest = {
     name: "VencordForAndroid",
     version,
     minRequiredVersion: "0.0.2",
-    minInstallerVersion: "0.0.2",
-    corruptedVersions: ["0.0.1"],
+    minInstallerVersion: pkg.minInstallerVersion,
+    corruptedVersions: pkg.corruptedVersions,
     targetApp: "com.discord",
     repository: "juli22292/vencordforandroid",
     installerRepository: "juli22292/vencordandroidapp",
@@ -77,8 +83,8 @@ const manifest = {
     rawBundleUrl: "https://raw.githubusercontent.com/juli22292/vencordforandroid/main/dist/vencordforandroid.js",
     sha256,
     pluginCount: BUILTIN_PLUGINS.length,
-    builtAt: new Date().toISOString(),
-    changelog: `v${version}: Echtes React-Native/Hermes-Bundle (direkter __r- & SETTING_RENDERER_CONFIG-Hook in die offizielle com.discord-App via LSPatch) mit ${BUILTIN_PLUGINS.length} offiziellen Vencord-Plugins.`
+    builtAt,
+    changelog: `v${version}: Korrekturen für Einstellungen, Plugin-Lebenszyklus und die Update-Anzeige.`
 };
 
 fs.writeFileSync(path.join(distDir, "manifest.json"), JSON.stringify(manifest, null, 2), "utf8");

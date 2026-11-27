@@ -1,11 +1,14 @@
 /**
- * VencordForAndroid v0.0.9 (React Native / Hermes Bundle for com.discord)
+ * VencordForAndroid v0.1.0 (React Native / Hermes Bundle for com.discord)
  * Repository: https://github.com/juli22292/vencordforandroid
- * Official Vencord Plugins adapted for Android (170 plugins)
- * Built: 2026-11-24T20:12:24.968Z
+ * Includes 170 plugin definitions
+ * Built: 2026-11-27T14:03:58.076Z
  */
 (function (global) {
 "use strict";
+
+// --- Module: src/core/Version.js ---
+const CORE_VERSION = "0.1.0";
 
 // --- Module: src/core/Settings.js ---
 /**
@@ -16,7 +19,7 @@
 const STORAGE_KEY = "VencordForAndroid_Settings_v4";
 
 const DEFAULT_SETTINGS = {
-    version: "0.0.9",
+    version: CORE_VERSION,
     autoUpdate: true,
     autoUpdateNotification: true,
     useQuickCss: true,
@@ -72,25 +75,27 @@ class SettingsStoreService {
     _getNativeStorage() {
         if (typeof globalThis !== "undefined") {
             // 1. Native Xposed / Loader Bridge inside com.discord
-            if (globalThis.__VENCORD_NATIVE_BRIDGE__ && typeof globalThis.__VENCORD_NATIVE_BRIDGE__.readSettingsJson === "function") {
+            const bridge = globalThis.__VENCORD_NATIVE_BRIDGE__;
+            if (typeof bridge?.readSettingsJson === "function" && typeof bridge.writeSettingsJson === "function") {
                 return {
-                    getItem: () => globalThis.__VENCORD_NATIVE_BRIDGE__.readSettingsJson(),
-                    setItem: (_k, v) => globalThis.__VENCORD_NATIVE_BRIDGE__.writeSettingsJson(v),
-                    removeItem: () => globalThis.__VENCORD_NATIVE_BRIDGE__.writeSettingsJson("")
+                    getItem: () => bridge.readSettingsJson(),
+                    setItem: (_k, v) => bridge.writeSettingsJson(v),
+                    removeItem: () => bridge.writeSettingsJson("")
                 };
             }
             // 2. Discord React Native MMKV storage
-            if (globalThis.mmkvStorage) {
+            const mmkv = globalThis.mmkvStorage;
+            if (typeof mmkv?.getString === "function" && typeof mmkv.set === "function" && typeof mmkv.delete === "function") {
                 return {
-                    getItem: (k) => globalThis.mmkvStorage.getString(k) ?? null,
-                    setItem: (k, v) => globalThis.mmkvStorage.set(k, v),
-                    removeItem: (k) => globalThis.mmkvStorage.delete(k)
+                    getItem: (k) => mmkv.getString(k) ?? null,
+                    setItem: (k, v) => mmkv.set(k, v),
+                    removeItem: (k) => mmkv.delete(k)
                 };
             }
             // 3. Web / DOM localStorage
-            if (globalThis.localStorage) {
-                return globalThis.localStorage;
-            }
+            try {
+                if (globalThis.localStorage) return globalThis.localStorage;
+            } catch (_) {}
         }
         if (!this._mem) this._mem = new Map();
         return {
@@ -104,33 +109,46 @@ class SettingsStoreService {
         try {
             const storage = this._getNativeStorage();
             const raw = storage.getItem(STORAGE_KEY);
-            if (!raw) {
-                const init = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-                storage.setItem(STORAGE_KEY, JSON.stringify(init));
-                return init;
-            }
-            const parsed = JSON.parse(raw);
-            return {
-                ...DEFAULT_SETTINGS,
-                ...parsed,
-                version: "0.0.9",
-                cloud: { ...DEFAULT_SETTINGS.cloud, ...(parsed.cloud || {}) },
-                uiElements: { ...DEFAULT_SETTINGS.uiElements, ...(parsed.uiElements || {}) },
-                plugins: { ...(parsed.plugins || {}) }
-            };
+            return this._normalize(raw ? JSON.parse(raw) : {});
         } catch (err) {
-            return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+            return this._normalize({});
         }
+    }
+
+    _normalize(parsed) {
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+            throw new TypeError("Der Einstellungsimport muss ein JSON-Objekt enthalten.");
+        }
+        const defaults = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+        const plugins = Object.create(null);
+        for (const [name, config] of Object.entries(parsed.plugins ?? {})) {
+            if (config && typeof config === "object" && !Array.isArray(config)) {
+                plugins[name] = { ...config, options: { ...config.options } };
+            }
+        }
+        return {
+            ...defaults,
+            ...parsed,
+            version: CORE_VERSION,
+            cloud: { ...defaults.cloud, ...parsed.cloud },
+            uiElements: { ...defaults.uiElements, ...parsed.uiElements },
+            plugins
+        };
+    }
+
+    _replaceSettings(next) {
+        for (const key of Object.keys(this.plain)) delete this.plain[key];
+        Object.defineProperties(this.plain, Object.getOwnPropertyDescriptors(next));
     }
 
     save(changedPath = "") {
         try {
             const storage = this._getNativeStorage();
             storage.setItem(STORAGE_KEY, JSON.stringify(this.plain));
-            this._notify(changedPath);
         } catch (err) {
             console.error("[VencordForAndroid:SettingsStore] Save failed:", err);
         }
+        this._notify(changedPath);
     }
 
     get(key) {
@@ -161,17 +179,26 @@ class SettingsStoreService {
                 ? opt.default
                 : (Array.isArray(opt.options) ? opt.options.find((o) => o.default)?.value : undefined);
         }
-        const cfg = this.getPluginConfig(pluginName, { defaultOptions });
         const self = this;
-        return new Proxy(cfg.options, {
-            get(target, prop) {
-                if (prop in target) return target[prop];
+        const currentOptions = () => self.getPluginConfig(pluginName, { defaultOptions }).options;
+        return new Proxy({}, {
+            get(_target, prop) {
+                const options = currentOptions();
+                if (Object.prototype.hasOwnProperty.call(options, prop)) return options[prop];
                 return defaultOptions[prop];
             },
-            set(target, prop, value) {
-                target[prop] = value;
-                self.save(`plugins.${pluginName}.${String(prop)}`);
+            set(_target, prop, value) {
+                self.setPluginOption(pluginName, prop, value);
                 return true;
+            },
+            has(_target, prop) {
+                return prop in currentOptions();
+            },
+            ownKeys() {
+                return Reflect.ownKeys(currentOptions());
+            },
+            getOwnPropertyDescriptor(_target, prop) {
+                return Object.getOwnPropertyDescriptor(currentOptions(), prop);
             }
         });
     }
@@ -185,8 +212,13 @@ class SettingsStoreService {
     setPluginOption(pluginName, optionKey, value) {
         const cfg = this.getPluginConfig(pluginName);
         if (!cfg.options) cfg.options = {};
-        cfg.options[optionKey] = value;
-        this.save(`plugins.${pluginName}.${optionKey}`);
+        Object.defineProperty(cfg.options, optionKey, {
+            value,
+            enumerable: true,
+            configurable: true,
+            writable: true
+        });
+        this.save(`plugins.${pluginName}.${String(optionKey)}`);
     }
 
     addGlobalChangeListener(cb) {
@@ -226,21 +258,13 @@ class SettingsStoreService {
     }
 
     importJSON(jsonStr) {
-        const parsed = JSON.parse(jsonStr);
-        this.plain = {
-            ...DEFAULT_SETTINGS,
-            ...parsed,
-            version: "0.0.9",
-            plugins: { ...(parsed.plugins || {}) }
-        };
+        this._replaceSettings(this._normalize(JSON.parse(jsonStr)));
         this.save();
     }
 
     wipeAll() {
-        const storage = this._getNativeStorage();
-        storage.removeItem(STORAGE_KEY);
-        this.plain = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-        this._notify("*");
+        this._replaceSettings(this._normalize({}));
+        this.save("*");
     }
 }
 const Settings = new SettingsStoreService();
@@ -256,6 +280,7 @@ const PlainSettings = Settings.plain;
 class PatcherAndModuleEngine {
     constructor() {
         this.patches = new Map();
+        this.patchWrappers = new WeakMap();
         this.declarativePatches = [];
         this.waitSubscriptions = new Set();
         this._commonCache = {};
@@ -269,13 +294,13 @@ class PatcherAndModuleEngine {
         }
 
         const original = target[method];
+        const entry = { original, active: true };
         const wrapped = function (...args) {
+            if (!entry.active) return original.apply(this, args);
             if (type === "before") {
                 try {
                     const newArgs = callback(args, this);
-                    if (Array.isArray(newArgs)) {
-                        return original.apply(this, newArgs);
-                    }
+                    if (Array.isArray(newArgs)) args = newArgs;
                 } catch (err) {
                     console.error(`[VencordForAndroid:Patcher] Error in before patch (${callerId}.${method}):`, err);
                 }
@@ -303,10 +328,18 @@ class PatcherAndModuleEngine {
 
         wrapped.__vencordOriginal = original;
         target[method] = wrapped;
+        this.patchWrappers.set(wrapped, entry);
 
         const unpatch = () => {
+            entry.active = false;
             if (target[method] === wrapped) {
-                target[method] = original;
+                let next = original;
+                let previous = this.patchWrappers.get(next);
+                while (previous && !previous.active) {
+                    next = previous.original;
+                    previous = this.patchWrappers.get(next);
+                }
+                target[method] = next;
             }
             this.patches.get(callerId)?.delete(unpatch);
         };
@@ -332,6 +365,7 @@ class PatcherAndModuleEngine {
 
     unpatchAll(callerId) {
         if (callerId) {
+            this.declarativePatches = this.declarativePatches.filter((patch) => patch.plugin !== callerId);
             const set = this.patches.get(callerId);
             if (set) {
                 for (const unpatch of Array.from(set)) unpatch();
@@ -342,6 +376,7 @@ class PatcherAndModuleEngine {
         for (const id of Array.from(this.patches.keys())) {
             this.unpatchAll(id);
         }
+        this.declarativePatches.length = 0;
     }
 
     // --- 2. Vencord Declarative Patches (patches: [{ find, replacement: { match, replace } }]) ---
@@ -649,7 +684,7 @@ function definePlugin(definition) {
 
 class PluginManagerService {
     constructor() {
-        this.plugins = {};
+        this.plugins = Object.create(null);
         this.registry = new Map();
         this.running = new Set();
         this.fluxUnsubscribers = new Map();
@@ -670,7 +705,9 @@ class PluginManagerService {
         const defaultOptions = {};
         if (plugin.options) {
             for (const [key, opt] of Object.entries(plugin.options)) {
-                defaultOptions[key] = opt.default;
+                defaultOptions[key] = opt.default !== undefined
+                    ? opt.default
+                    : (Array.isArray(opt.options) ? opt.options.find((option) => option.default)?.value : undefined);
             }
         }
 
@@ -690,9 +727,11 @@ class PluginManagerService {
     getAllPlugins() {
         return Array.from(this.registry.values()).map((plugin) => {
             const cfg = Settings.getPluginConfig(plugin.name);
+            const available = this._isAvailable(plugin);
             return {
                 ...plugin,
-                enabled: Boolean(plugin.required || cfg.enabled),
+                available,
+                enabled: available && Boolean(plugin.required || cfg.enabled),
                 running: this.running.has(plugin.name),
                 optionValues: { ...(cfg.options || {}) }
             };
@@ -703,9 +742,13 @@ class PluginManagerService {
         return this.registry.get(name) || null;
     }
 
+    _isAvailable(plugin) {
+        return Boolean(plugin.required || plugin.start || plugin.flux || plugin.onBeforeMessageSend || plugin.onBeforeMessageEdit);
+    }
+
     isPluginEnabled(name) {
         const plugin = this.getPlugin(name);
-        if (!plugin) return false;
+        if (!plugin || !this._isAvailable(plugin)) return false;
         if (plugin.required || plugin.isDependency) return true;
         return Boolean(Settings.getPluginConfig(name).enabled);
     }
@@ -753,6 +796,7 @@ class PluginManagerService {
         // Resolve dependencies and register declarative patches for enabled plugins
         for (const plugin of this.registry.values()) {
             if (!this.isPluginEnabled(plugin.name)) continue;
+            if (Settings.get("safeMode") && !plugin.required) continue;
 
             if (Array.isArray(plugin.dependencies)) {
                 for (const depName of plugin.dependencies) {
@@ -789,7 +833,8 @@ class PluginManagerService {
 
     startPlugin(nameOrPlugin) {
         const plugin = typeof nameOrPlugin === "string" ? this.getPlugin(nameOrPlugin) : nameOrPlugin;
-        if (!plugin || this.running.has(plugin.name)) return false;
+        if (!plugin || !this._isAvailable(plugin) || this.running.has(plugin.name)) return false;
+        if (Settings.get("safeMode") && !plugin.required) return false;
 
         try {
             const cfg = Settings.getPluginConfig(plugin.name);
@@ -808,8 +853,9 @@ class PluginManagerService {
             // Auto-subscribe FluxDispatcher events like official Vencord
             if (plugin.flux && typeof plugin.flux === "object") {
                 const FluxDispatcher = Patcher.Common.FluxDispatcher;
-                if (FluxDispatcher && typeof FluxDispatcher.subscribe === "function") {
+                if (typeof FluxDispatcher?.subscribe === "function" && typeof FluxDispatcher.unsubscribe === "function") {
                     const unsubs = [];
+                    this.fluxUnsubscribers.set(plugin.name, unsubs);
                     for (const [eventName, handler] of Object.entries(plugin.flux)) {
                         if (typeof handler === "function") {
                             const bound = handler.bind(plugin);
@@ -817,7 +863,6 @@ class PluginManagerService {
                             unsubs.push(() => FluxDispatcher.unsubscribe(eventName, bound));
                         }
                     }
-                    this.fluxUnsubscribers.set(plugin.name, unsubs);
                 }
             }
 
@@ -837,38 +882,40 @@ class PluginManagerService {
             return true;
         } catch (err) {
             console.error(`[VencordForAndroid:PluginManager] Failed to start ${plugin.name}:`, err);
+            this._disposePlugin(plugin);
             return false;
         }
+    }
+
+    _disposePlugin(plugin) {
+        try {
+            plugin.stop?.({ patcher: Patcher });
+        } catch (err) {
+            console.error(`[VencordForAndroid:PluginManager] Failed to stop ${plugin.name}:`, err);
+        }
+        Patcher.unpatchAll(plugin.name);
+        const unsubs = this.fluxUnsubscribers.get(plugin.name) || [];
+        for (const unsubscribe of unsubs) {
+            try {
+                unsubscribe();
+            } catch (err) {
+                console.error(`[VencordForAndroid:PluginManager] Failed to unsubscribe ${plugin.name}:`, err);
+            }
+        }
+        this.fluxUnsubscribers.delete(plugin.name);
+        this.preSendListeners.delete(plugin.name);
+        this.preEditListeners.delete(plugin.name);
+        plugin.started = false;
+        this.running.delete(plugin.name);
     }
 
     stopPlugin(nameOrPlugin) {
         const plugin = typeof nameOrPlugin === "string" ? this.getPlugin(nameOrPlugin) : nameOrPlugin;
         if (!plugin || plugin.required) return false;
 
-        try {
-            if (this.running.has(plugin.name)) {
-                if (typeof plugin.stop === "function") {
-                    plugin.stop({ patcher: Patcher });
-                }
-                Patcher.unpatchAll(plugin.name);
-
-                const unsubs = this.fluxUnsubscribers.get(plugin.name);
-                if (unsubs) {
-                    for (const u of unsubs) u();
-                    this.fluxUnsubscribers.delete(plugin.name);
-                }
-
-                this.preSendListeners.delete(plugin.name);
-                this.preEditListeners.delete(plugin.name);
-                plugin.started = false;
-                this.running.delete(plugin.name);
-            }
-            Settings.setPluginEnabled(plugin.name, false);
-            return true;
-        } catch (err) {
-            console.error(`[VencordForAndroid:PluginManager] Failed to stop ${plugin.name}:`, err);
-            return false;
-        }
+        if (this.running.has(plugin.name)) this._disposePlugin(plugin);
+        Settings.setPluginEnabled(plugin.name, false);
+        return true;
     }
 
     togglePlugin(name) {
@@ -889,21 +936,13 @@ class PluginManagerService {
 
     uninstallAll() {
         for (const name of Array.from(this.running)) {
-            const p = this.getPlugin(name);
-            if (p && typeof p.stop === "function") {
-                try {
-                    p.stop({ patcher: Patcher });
-                } catch (_) {}
-            }
-            Patcher.unpatchAll(name);
+            this._disposePlugin(this.getPlugin(name));
         }
-        this.running.clear();
-        this.fluxUnsubscribers.clear();
-        this.preSendListeners.clear();
-        this.preEditListeners.clear();
         Patcher.unpatchAll();
+        this._messageEventsHooked = false;
         Settings.wipeAll();
         this.registry.clear();
+        for (const name of Object.keys(this.plugins)) delete this.plugins[name];
     }
 }
 const PluginManager = new PluginManagerService();
@@ -914,7 +953,6 @@ const PluginManager = new PluginManagerService();
  * Follows Vendicated/Vencord/src/utils/updater.ts and Vencord/Vendroid/VencordUpdater.java
  * Pulls updates exclusively from https://github.com/juli22292/vencordforandroid
  */
-const CORE_VERSION = "0.0.9";
 const MIN_REQUIRED_VERSION = "0.0.2";
 const CORRUPTED_VERSIONS = ["0.0.1"];
 const CORE_REPO = "juli22292/vencordforandroid";
@@ -922,6 +960,17 @@ const INSTALLER_REPO = "juli22292/vencordandroidapp";
 const CORE_RELEASES_API = `https://api.github.com/repos/${CORE_REPO}/releases/latest`;
 const CORE_MANIFEST_URL = `https://raw.githubusercontent.com/${CORE_REPO}/main/dist/manifest.json`;
 const CORE_BUNDLE_URL = `https://raw.githubusercontent.com/${CORE_REPO}/main/dist/vencordforandroid.js`;
+
+function parseReleaseVersion(value) {
+    const version = typeof value === "string" ? value.trim().replace(/^v/i, "") : "";
+    return /^\d+\.\d+\.\d+$/.test(version) ? version : null;
+}
+
+async function fetchUpdateMetadata(url) {
+    const response = await fetch(url, { cache: "no-store", headers: { Accept: "application/json" } });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+}
 
 class UpdaterService {
     constructor() {
@@ -933,9 +982,13 @@ class UpdaterService {
         this.changes = [];
         this.corruptedVersions = [...CORRUPTED_VERSIONS];
         this.releaseNotes = "";
-        this.downloadUrl = CORE_BUNDLE_URL;
+        this.downloadUrl = null;
         this.status = "idle";
         this.errorMessage = null;
+    }
+
+    get canApplyUpdate() {
+        return !!this.downloadUrl && typeof globalThis.__VENCORD_NATIVE_BRIDGE__?.saveBundleUpdate === "function";
     }
 
     compareVersions(current, remote) {
@@ -954,9 +1007,8 @@ class UpdaterService {
 
     isVersionCorrupted(versionStr) {
         const cleanVer = String(versionStr || "").replace(/^v/i, "").trim();
-        if (this.corruptedVersions.includes(cleanVer)) return true;
-        if (this.compareVersions(cleanVer, MIN_REQUIRED_VERSION) > 0) return true;
-        return false;
+        if (!parseReleaseVersion(cleanVer)) return false;
+        return this.corruptedVersions.includes(cleanVer) || this.compareVersions(cleanVer, MIN_REQUIRED_VERSION) > 0;
     }
 
     async checkForUpdates() {
@@ -964,43 +1016,39 @@ class UpdaterService {
         this.errorMessage = null;
 
         try {
-            let remoteVersion = CORE_VERSION;
-            let notes = "";
-            let bundleUrl = CORE_BUNDLE_URL;
-
-            try {
-                const manifestRes = await fetch(CORE_MANIFEST_URL, { cache: "no-store" });
-                if (manifestRes.ok) {
-                    const manifest = await manifestRes.json();
-                    if (Array.isArray(manifest.corruptedVersions)) {
-                        this.corruptedVersions = manifest.corruptedVersions;
-                    }
-                    remoteVersion = manifest.version || CORE_VERSION;
-                    this.latestHash = (manifest.sha256 || "main").slice(0, 7);
-                    notes = manifest.changelog || "";
-                    bundleUrl = manifest.rawBundleUrl || CORE_BUNDLE_URL;
-                }
-            } catch (_) {}
-
-            const releaseRes = await fetch(CORE_RELEASES_API, {
-                headers: { Accept: "application/vnd.github+json" }
-            });
-
-            if (releaseRes.ok) {
-                const releaseData = await releaseRes.json();
-                remoteVersion = (releaseData.tag_name || releaseData.name || remoteVersion).replace(/^v/i, "");
-                notes = releaseData.body || notes;
-                const asset = (releaseData.assets || []).find((a) => a.name === "vencordforandroid.js");
-                if (asset && asset.browser_download_url) {
-                    bundleUrl = asset.browser_download_url;
-                }
+            const [manifestResult, releaseResult] = await Promise.allSettled([
+                fetchUpdateMetadata(CORE_MANIFEST_URL),
+                fetchUpdateMetadata(CORE_RELEASES_API)
+            ]);
+            const manifest = manifestResult.value;
+            const release = releaseResult.value;
+            const manifestVersion = parseReleaseVersion(manifest?.version);
+            const releaseVersion = parseReleaseVersion(release?.tag_name);
+            if (!manifestVersion && !releaseVersion) {
+                const unavailable = [manifestResult, releaseResult].every((result) => result.reason?.message === "HTTP 404");
+                throw new Error(unavailable
+                    ? "GitHub-Releases sind ohne Anmeldung nicht zugänglich. Öffne die Releases im Browser."
+                    : "Die Update-Informationen konnten nicht geladen werden.");
             }
+            if (Array.isArray(manifest?.corruptedVersions)) {
+                this.corruptedVersions = manifest.corruptedVersions.filter((version) => parseReleaseVersion(version) === version);
+            }
+
+            const useRelease = releaseVersion && (!manifestVersion || this.compareVersions(manifestVersion, releaseVersion) >= 0);
+            const remoteVersion = useRelease ? releaseVersion : manifestVersion;
+            const releaseAssetUrl = useRelease
+                ? `https://github.com/${CORE_REPO}/releases/download/${release.tag_name}/vencordforandroid.js`
+                : null;
+            const hasReleaseBundle = useRelease && Array.isArray(release.assets)
+                && release.assets.some((asset) => asset?.name === "vencordforandroid.js" && asset.browser_download_url === releaseAssetUrl);
 
             this.lastCheck = new Date().toISOString();
             this.latestVersion = remoteVersion;
-            this.releaseNotes = notes;
-            this.downloadUrl = bundleUrl;
-            this.updateAvailable = this.compareVersions(CORE_VERSION, remoteVersion) > 0;
+            this.latestHash = remoteVersion === manifestVersion && /^[0-9a-f]{64}$/.test(manifest.sha256)
+                ? manifest.sha256.slice(0, 7) : "main";
+            this.releaseNotes = useRelease ? (release.body || "") : (manifest.changelog || "");
+            this.downloadUrl = hasReleaseBundle ? releaseAssetUrl : remoteVersion === manifestVersion ? CORE_BUNDLE_URL : null;
+            this.updateAvailable = this.compareVersions(CORE_VERSION, remoteVersion) > 0 && !this.isVersionCorrupted(remoteVersion);
             this.status = this.updateAvailable ? "update-available" : "up-to-date";
 
             return {
@@ -1015,6 +1063,8 @@ class UpdaterService {
         } catch (err) {
             this.status = "error";
             this.errorMessage = err?.message || "Failed to fetch updates from GitHub";
+            this.updateAvailable = false;
+            this.downloadUrl = null;
             return {
                 currentVersion: CORE_VERSION,
                 latestVersion: this.latestVersion,
@@ -1026,34 +1076,32 @@ class UpdaterService {
     }
 
     async downloadAndApplyUpdate() {
+        if (this.status === "downloading") return { success: false };
         this.status = "downloading";
+        this.errorMessage = null;
         try {
+            if (!this.updateAvailable || !this.canApplyUpdate) {
+                throw new Error("Installiere das Update über die aktuelle VencordAndroidApp.");
+            }
+            const version = this.latestVersion;
             const res = await fetch(this.downloadUrl, { cache: "no-store" });
             if (!res.ok) {
                 throw new Error(`HTTP ${res.status}`);
             }
             const bundleCode = await res.text();
 
-            if (typeof globalThis !== "undefined") {
-                if (globalThis.__VENCORD_NATIVE_BRIDGE__?.saveBundleUpdate) {
-                    await globalThis.__VENCORD_NATIVE_BRIDGE__.saveBundleUpdate(bundleCode, this.latestVersion);
-                } else if (globalThis.mmkvStorage) {
-                    globalThis.mmkvStorage.set("VencordForAndroid_CachedBundle", bundleCode);
-                    globalThis.mmkvStorage.set("VencordForAndroid_CachedVersion", this.latestVersion);
-                } else if (globalThis.localStorage) {
-                    globalThis.localStorage.setItem("VencordForAndroid_CachedBundle", bundleCode);
-                    globalThis.localStorage.setItem("VencordForAndroid_CachedVersion", this.latestVersion);
-                }
+            const applied = await globalThis.__VENCORD_NATIVE_BRIDGE__.saveBundleUpdate(bundleCode, version);
+            if (applied === false) {
+                throw new Error("Das Update konnte nicht gespeichert werden.");
             }
 
-            Settings.set("version", this.latestVersion);
             this.updateAvailable = false;
             this.hasPendingRestart = true;
-            this.status = "up-to-date";
+            this.status = "restart-required";
 
             return {
                 success: true,
-                installedVersion: this.latestVersion
+                installedVersion: version
             };
         } catch (err) {
             this.status = "error";
@@ -3226,6 +3274,11 @@ class DiscordSettingsInjector {
             const refresh = () => setTick((n) => n + 1);
 
             if (tabId === "updater") {
+                const updateStatus = Updater.errorMessage
+                    || (Updater.hasPendingRestart ? "Starte Discord neu, um das Update zu laden." : null)
+                    || (Updater.updateAvailable ? `Neues Update v${Updater.latestVersion} verfügbar.` : null)
+                    || (Updater.status === "up-to-date" ? "VencordForAndroid ist auf dem neuesten Stand." : "Update-Status ausstehend.");
+                const releasesUrl = "https://github.com/" + (Updater.updateAvailable ? INSTALLER_REPO : CORE_REPO) + "/releases/latest";
                 return React.createElement(
                     ScrollView,
                     { style: { flex: 1, backgroundColor: "#1e1f22", padding: 16 } },
@@ -3234,7 +3287,8 @@ class DiscordSettingsInjector {
                         { style: { backgroundColor: "#2b2d31", borderRadius: 10, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: "#3f4147" } },
                         React.createElement(Text, { style: { color: "#f2f3f5", fontSize: 16, fontWeight: "700", marginBottom: 6 } }, "VencordForAndroid Repository"),
                         React.createElement(Text, { style: { color: "#00a8fc", fontSize: 13 } }, `https://github.com/${CORE_REPO}`),
-                        React.createElement(Text, { style: { color: "#b5bac1", fontSize: 13, marginTop: 4 } }, `Installiert: v${CORE_VERSION} • Neueste: v${Updater.latestVersion}`)
+                        React.createElement(Text, { style: { color: "#b5bac1", fontSize: 13, marginTop: 4 } },
+                            `Installiert: v${CORE_VERSION}` + (Updater.lastCheck && !Updater.errorMessage ? ` • Neueste: v${Updater.latestVersion}` : ""))
                     ),
                     React.createElement(
                         View,
@@ -3243,7 +3297,7 @@ class DiscordSettingsInjector {
                         React.createElement(
                             Text,
                             { style: { color: "#b5bac1", fontSize: 13, marginBottom: 14 } },
-                            Updater.updateAvailable ? `Neues Update v${Updater.latestVersion} verfügbar!` : "VencordForAndroid ist auf dem neuesten Stand!"
+                            updateStatus
                         ),
                         React.createElement(
                             View,
@@ -3259,17 +3313,27 @@ class DiscordSettingsInjector {
                                 },
                                 React.createElement(Text, { style: { color: "#fff", fontWeight: "700" } }, "Nach Updates suchen")
                             ),
-                            Updater.updateAvailable ? React.createElement(
+                            React.createElement(
                                 TouchableOpacity,
                                 {
                                     style: { backgroundColor: "#248046", paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 },
                                     onPress: async () => {
-                                        await Updater.downloadAndApplyUpdate();
-                                        refresh();
+                                        if (Updater.updateAvailable && Updater.canApplyUpdate) {
+                                            await Updater.downloadAndApplyUpdate();
+                                            refresh();
+                                        } else {
+                                            try {
+                                                await RN.Linking.openURL(releasesUrl);
+                                            } catch (err) {
+                                                Updater.errorMessage = "GitHub konnte nicht im Browser geöffnet werden.";
+                                                refresh();
+                                            }
+                                        }
                                     }
                                 },
-                                React.createElement(Text, { style: { color: "#fff", fontWeight: "700" } }, "Update installieren")
-                            ) : null
+                                React.createElement(Text, { style: { color: "#fff", fontWeight: "700" } },
+                                    Updater.updateAvailable && Updater.canApplyUpdate ? "Update installieren" : "GitHub-Releases")
+                            )
                         )
                     )
                 );
@@ -3358,7 +3422,7 @@ class DiscordSettingsInjector {
                 );
             }
 
-            // Default: Official Vencord Plugins Screen (170 official Vencord plugins adapted for Android)
+            // Show the built-in plugin catalog.
             const allPlugins = PluginManager.getAllPlugins().filter((p) => {
                 if (search) {
                     const q = search.toLowerCase();
@@ -3441,7 +3505,7 @@ class DiscordSettingsInjector {
                                 ),
                                 Switch ? React.createElement(Switch, {
                                     value: plugin.enabled,
-                                    disabled: plugin.required,
+                                    disabled: plugin.required || !plugin.available || Settings.get("safeMode"),
                                     onValueChange: () => {
                                         PluginManager.togglePlugin(plugin.name);
                                         refresh();
@@ -3450,6 +3514,7 @@ class DiscordSettingsInjector {
                             )
                         ),
                         React.createElement(Text, { style: { color: "#b5bac1", fontSize: 13 } }, plugin.description),
+                        !plugin.available ? React.createElement(Text, { style: { color: "#f0b232", fontSize: 12, marginTop: 6 } }, "Noch nicht für Android portiert") : null,
                         selectedPlugin === plugin.name && plugin.hasSettings ? React.createElement(
                             View,
                             { style: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#3f4147" } },
@@ -3538,7 +3603,7 @@ class VencordForAndroidRuntime {
             Settings.set("version", this.version);
             console.log(`[VencordForAndroid] Initializing v${this.version} natively inside com.discord Metro/Hermes runtime...`);
 
-            // 1. Register all 170 official Vencord plugins adapted for Android
+            // 1. Register the built-in plugin catalog.
             PluginManager.registerAll(BUILTIN_PLUGINS);
 
             // 2. Patch Discord Android native Settings (SETTING_RENDERER_CONFIG, createList & SettingsOverviewScreen)
@@ -3548,7 +3613,7 @@ class VencordForAndroidRuntime {
             PluginManager.startAllEnabled();
 
             this.initialized = true;
-            console.log(`[VencordForAndroid] Loaded ${PluginManager.getAllPlugins().length} official Vencord plugins natively inside com.discord.`);
+            console.log(`[VencordForAndroid] Started ${PluginManager.running.size} plugins.`);
 
             // 4. Background update check against juli22292/vencordforandroid
             if (Settings.get("autoUpdate") && typeof fetch === "function") {

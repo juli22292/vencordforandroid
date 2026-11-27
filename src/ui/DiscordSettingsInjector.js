@@ -11,7 +11,7 @@
 
 import { Settings } from "../core/Settings.js";
 import { PluginManager } from "../core/PluginManager.js";
-import { Updater, CORE_VERSION, CORE_REPO } from "../core/Updater.js";
+import { Updater, CORE_VERSION, CORE_REPO, INSTALLER_REPO } from "../core/Updater.js";
 import { Patcher } from "../core/Patcher.js";
 
 function findInReactTree(tree, filter) {
@@ -278,6 +278,11 @@ export class DiscordSettingsInjector {
             const refresh = () => setTick((n) => n + 1);
 
             if (tabId === "updater") {
+                const updateStatus = Updater.errorMessage
+                    || (Updater.hasPendingRestart ? "Starte Discord neu, um das Update zu laden." : null)
+                    || (Updater.updateAvailable ? `Neues Update v${Updater.latestVersion} verfügbar.` : null)
+                    || (Updater.status === "up-to-date" ? "VencordForAndroid ist auf dem neuesten Stand." : "Update-Status ausstehend.");
+                const releasesUrl = "https://github.com/" + (Updater.updateAvailable ? INSTALLER_REPO : CORE_REPO) + "/releases/latest";
                 return React.createElement(
                     ScrollView,
                     { style: { flex: 1, backgroundColor: "#1e1f22", padding: 16 } },
@@ -286,7 +291,8 @@ export class DiscordSettingsInjector {
                         { style: { backgroundColor: "#2b2d31", borderRadius: 10, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: "#3f4147" } },
                         React.createElement(Text, { style: { color: "#f2f3f5", fontSize: 16, fontWeight: "700", marginBottom: 6 } }, "VencordForAndroid Repository"),
                         React.createElement(Text, { style: { color: "#00a8fc", fontSize: 13 } }, `https://github.com/${CORE_REPO}`),
-                        React.createElement(Text, { style: { color: "#b5bac1", fontSize: 13, marginTop: 4 } }, `Installiert: v${CORE_VERSION} • Neueste: v${Updater.latestVersion}`)
+                        React.createElement(Text, { style: { color: "#b5bac1", fontSize: 13, marginTop: 4 } },
+                            `Installiert: v${CORE_VERSION}` + (Updater.lastCheck && !Updater.errorMessage ? ` • Neueste: v${Updater.latestVersion}` : ""))
                     ),
                     React.createElement(
                         View,
@@ -295,7 +301,7 @@ export class DiscordSettingsInjector {
                         React.createElement(
                             Text,
                             { style: { color: "#b5bac1", fontSize: 13, marginBottom: 14 } },
-                            Updater.updateAvailable ? `Neues Update v${Updater.latestVersion} verfügbar!` : "VencordForAndroid ist auf dem neuesten Stand!"
+                            updateStatus
                         ),
                         React.createElement(
                             View,
@@ -311,17 +317,27 @@ export class DiscordSettingsInjector {
                                 },
                                 React.createElement(Text, { style: { color: "#fff", fontWeight: "700" } }, "Nach Updates suchen")
                             ),
-                            Updater.updateAvailable ? React.createElement(
+                            React.createElement(
                                 TouchableOpacity,
                                 {
                                     style: { backgroundColor: "#248046", paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 },
                                     onPress: async () => {
-                                        await Updater.downloadAndApplyUpdate();
-                                        refresh();
+                                        if (Updater.updateAvailable && Updater.canApplyUpdate) {
+                                            await Updater.downloadAndApplyUpdate();
+                                            refresh();
+                                        } else {
+                                            try {
+                                                await RN.Linking.openURL(releasesUrl);
+                                            } catch (err) {
+                                                Updater.errorMessage = "GitHub konnte nicht im Browser geöffnet werden.";
+                                                refresh();
+                                            }
+                                        }
                                     }
                                 },
-                                React.createElement(Text, { style: { color: "#fff", fontWeight: "700" } }, "Update installieren")
-                            ) : null
+                                React.createElement(Text, { style: { color: "#fff", fontWeight: "700" } },
+                                    Updater.updateAvailable && Updater.canApplyUpdate ? "Update installieren" : "GitHub-Releases")
+                            )
                         )
                     )
                 );
@@ -410,7 +426,7 @@ export class DiscordSettingsInjector {
                 );
             }
 
-            // Default: Official Vencord Plugins Screen (170 official Vencord plugins adapted for Android)
+            // Show the built-in plugin catalog.
             const allPlugins = PluginManager.getAllPlugins().filter((p) => {
                 if (search) {
                     const q = search.toLowerCase();
@@ -493,7 +509,7 @@ export class DiscordSettingsInjector {
                                 ),
                                 Switch ? React.createElement(Switch, {
                                     value: plugin.enabled,
-                                    disabled: plugin.required,
+                                    disabled: plugin.required || !plugin.available || Settings.get("safeMode"),
                                     onValueChange: () => {
                                         PluginManager.togglePlugin(plugin.name);
                                         refresh();
@@ -502,6 +518,7 @@ export class DiscordSettingsInjector {
                             )
                         ),
                         React.createElement(Text, { style: { color: "#b5bac1", fontSize: 13 } }, plugin.description),
+                        !plugin.available ? React.createElement(Text, { style: { color: "#f0b232", fontSize: 12, marginTop: 6 } }, "Noch nicht für Android portiert") : null,
                         selectedPlugin === plugin.name && plugin.hasSettings ? React.createElement(
                             View,
                             { style: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#3f4147" } },

@@ -1,6 +1,6 @@
 {
   "name": "VencordForAndroid",
-  "version": "0.0.9",
+  "version": "0.1.0",
   "minRequiredVersion": "0.0.2",
   "minInstallerVersion": "0.0.2",
   "corruptedVersions": [
@@ -10,10 +10,10 @@
   "repository": "juli22292/vencordforandroid",
   "installerRepository": "juli22292/vencordandroidapp",
   "bundleFile": "vencordforandroid.js",
-  "bundleUrl": "https://github.com/juli22292/vencordforandroid/releases/download/0.0.9/vencordforandroid.js",
+  "bundleUrl": "https://github.com/juli22292/vencordforandroid/releases/download/0.1.0/vencordforandroid.js",
   "rawBundleUrl": "https://raw.githubusercontent.com/juli22292/vencordforandroid/main/dist/vencordforandroid.js",
-  "sha256": "b62dc7bd3f18a0d475deb403da2f4af81f32cec05d4225069352d27b2a26464b",
+  "sha256": "64194c857e50e2f075068606df798ca3b1a15628b84eff229ffcddcfb3e5194a",
   "pluginCount": 170,
-  "builtAt": "2026-11-24T20:12:24.971Z",
-  "changelog": "v0.0.9: Echtes React-Native/Hermes-Bundle (direkter __r- & SETTING_RENDERER_CONFIG-Hook in die offizielle com.discord-App via LSPatch) mit 170 offiziellen Vencord-Plugins."
+  "builtAt": "2026-11-27T14:03:58.076Z",
+  "changelog": "v0.1.0: Korrekturen für Einstellungen, Plugin-Lebenszyklus und die Update-Anzeige."
 }

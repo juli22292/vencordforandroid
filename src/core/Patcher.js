@@ -6,6 +6,7 @@
 class PatcherAndModuleEngine {
     constructor() {
         this.patches = new Map();
+        this.patchWrappers = new WeakMap();
         this.declarativePatches = [];
         this.waitSubscriptions = new Set();
         this._commonCache = {};
@@ -19,13 +20,13 @@ class PatcherAndModuleEngine {
         }
 
         const original = target[method];
+        const entry = { original, active: true };
         const wrapped = function (...args) {
+            if (!entry.active) return original.apply(this, args);
             if (type === "before") {
                 try {
                     const newArgs = callback(args, this);
-                    if (Array.isArray(newArgs)) {
-                        return original.apply(this, newArgs);
-                    }
+                    if (Array.isArray(newArgs)) args = newArgs;
                 } catch (err) {
                     console.error(`[VencordForAndroid:Patcher] Error in before patch (${callerId}.${method}):`, err);
                 }
@@ -53,10 +54,18 @@ class PatcherAndModuleEngine {
 
         wrapped.__vencordOriginal = original;
         target[method] = wrapped;
+        this.patchWrappers.set(wrapped, entry);
 
         const unpatch = () => {
+            entry.active = false;
             if (target[method] === wrapped) {
-                target[method] = original;
+                let next = original;
+                let previous = this.patchWrappers.get(next);
+                while (previous && !previous.active) {
+                    next = previous.original;
+                    previous = this.patchWrappers.get(next);
+                }
+                target[method] = next;
             }
             this.patches.get(callerId)?.delete(unpatch);
         };
@@ -82,6 +91,7 @@ class PatcherAndModuleEngine {
 
     unpatchAll(callerId) {
         if (callerId) {
+            this.declarativePatches = this.declarativePatches.filter((patch) => patch.plugin !== callerId);
             const set = this.patches.get(callerId);
             if (set) {
                 for (const unpatch of Array.from(set)) unpatch();
@@ -92,6 +102,7 @@ class PatcherAndModuleEngine {
         for (const id of Array.from(this.patches.keys())) {
             this.unpatchAll(id);
         }
+        this.declarativePatches.length = 0;
     }
 
     // --- 2. Vencord Declarative Patches (patches: [{ find, replacement: { match, replace } }]) ---

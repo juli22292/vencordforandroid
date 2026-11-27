@@ -51,7 +51,7 @@ class VencordForAndroidRuntime {
             Settings.set("version", this.version);
             console.log(`[VencordForAndroid] Initializing v${this.version} natively inside com.discord Metro/Hermes runtime...`);
 
-            // 1. Register all 170 official Vencord plugins adapted for Android
+            // 1. Register the built-in plugin catalog.
             PluginManager.registerAll(BUILTIN_PLUGINS);
 
             // 2. Patch Discord Android native Settings (SETTING_RENDERER_CONFIG, createList & SettingsOverviewScreen)
@@ -61,7 +61,7 @@ class VencordForAndroidRuntime {
             PluginManager.startAllEnabled();
 
             this.initialized = true;
-            console.log(`[VencordForAndroid] Loaded ${PluginManager.getAllPlugins().length} official Vencord plugins natively inside com.discord.`);
+            console.log(`[VencordForAndroid] Started ${PluginManager.running.size} plugins.`);
 
             // 4. Background update check against juli22292/vencordforandroid
             if (Settings.get("autoUpdate") && typeof fetch === "function") {

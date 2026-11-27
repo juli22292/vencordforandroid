@@ -3,10 +3,12 @@
  * Follows Vendicated/Vencord/src/api/Settings.ts architecture for Discord Android (MMKV / NativeBridge / Storage).
  */
 
+import { CORE_VERSION } from "./Version.js";
+
 const STORAGE_KEY = "VencordForAndroid_Settings_v4";
 
 const DEFAULT_SETTINGS = {
-    version: "0.0.9",
+    version: CORE_VERSION,
     autoUpdate: true,
     autoUpdateNotification: true,
     useQuickCss: true,
@@ -64,25 +66,27 @@ class SettingsStoreService {
     _getNativeStorage() {
         if (typeof globalThis !== "undefined") {
             // 1. Native Xposed / Loader Bridge inside com.discord
-            if (globalThis.__VENCORD_NATIVE_BRIDGE__ && typeof globalThis.__VENCORD_NATIVE_BRIDGE__.readSettingsJson === "function") {
+            const bridge = globalThis.__VENCORD_NATIVE_BRIDGE__;
+            if (typeof bridge?.readSettingsJson === "function" && typeof bridge.writeSettingsJson === "function") {
                 return {
-                    getItem: () => globalThis.__VENCORD_NATIVE_BRIDGE__.readSettingsJson(),
-                    setItem: (_k, v) => globalThis.__VENCORD_NATIVE_BRIDGE__.writeSettingsJson(v),
-                    removeItem: () => globalThis.__VENCORD_NATIVE_BRIDGE__.writeSettingsJson("")
+                    getItem: () => bridge.readSettingsJson(),
+                    setItem: (_k, v) => bridge.writeSettingsJson(v),
+                    removeItem: () => bridge.writeSettingsJson("")
                 };
             }
             // 2. Discord React Native MMKV storage
-            if (globalThis.mmkvStorage) {
+            const mmkv = globalThis.mmkvStorage;
+            if (typeof mmkv?.getString === "function" && typeof mmkv.set === "function" && typeof mmkv.delete === "function") {
                 return {
-                    getItem: (k) => globalThis.mmkvStorage.getString(k) ?? null,
-                    setItem: (k, v) => globalThis.mmkvStorage.set(k, v),
-                    removeItem: (k) => globalThis.mmkvStorage.delete(k)
+                    getItem: (k) => mmkv.getString(k) ?? null,
+                    setItem: (k, v) => mmkv.set(k, v),
+                    removeItem: (k) => mmkv.delete(k)
                 };
             }
             // 3. Web / DOM localStorage
-            if (globalThis.localStorage) {
-                return globalThis.localStorage;
-            }
+            try {
+                if (globalThis.localStorage) return globalThis.localStorage;
+            } catch (_) {}
         }
         if (!this._mem) this._mem = new Map();
         return {
@@ -96,33 +100,46 @@ class SettingsStoreService {
         try {
             const storage = this._getNativeStorage();
             const raw = storage.getItem(STORAGE_KEY);
-            if (!raw) {
-                const init = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-                storage.setItem(STORAGE_KEY, JSON.stringify(init));
-                return init;
-            }
-            const parsed = JSON.parse(raw);
-            return {
-                ...DEFAULT_SETTINGS,
-                ...parsed,
-                version: "0.0.9",
-                cloud: { ...DEFAULT_SETTINGS.cloud, ...(parsed.cloud || {}) },
-                uiElements: { ...DEFAULT_SETTINGS.uiElements, ...(parsed.uiElements || {}) },
-                plugins: { ...(parsed.plugins || {}) }
-            };
+            return this._normalize(raw ? JSON.parse(raw) : {});
         } catch (err) {
-            return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+            return this._normalize({});
         }
+    }
+
+    _normalize(parsed) {
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+            throw new TypeError("Der Einstellungsimport muss ein JSON-Objekt enthalten.");
+        }
+        const defaults = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+        const plugins = Object.create(null);
+        for (const [name, config] of Object.entries(parsed.plugins ?? {})) {
+            if (config && typeof config === "object" && !Array.isArray(config)) {
+                plugins[name] = { ...config, options: { ...config.options } };
+            }
+        }
+        return {
+            ...defaults,
+            ...parsed,
+            version: CORE_VERSION,
+            cloud: { ...defaults.cloud, ...parsed.cloud },
+            uiElements: { ...defaults.uiElements, ...parsed.uiElements },
+            plugins
+        };
+    }
+
+    _replaceSettings(next) {
+        for (const key of Object.keys(this.plain)) delete this.plain[key];
+        Object.defineProperties(this.plain, Object.getOwnPropertyDescriptors(next));
     }
 
     save(changedPath = "") {
         try {
             const storage = this._getNativeStorage();
             storage.setItem(STORAGE_KEY, JSON.stringify(this.plain));
-            this._notify(changedPath);
         } catch (err) {
             console.error("[VencordForAndroid:SettingsStore] Save failed:", err);
         }
+        this._notify(changedPath);
     }
 
     get(key) {
@@ -153,17 +170,26 @@ class SettingsStoreService {
                 ? opt.default
                 : (Array.isArray(opt.options) ? opt.options.find((o) => o.default)?.value : undefined);
         }
-        const cfg = this.getPluginConfig(pluginName, { defaultOptions });
         const self = this;
-        return new Proxy(cfg.options, {
-            get(target, prop) {
-                if (prop in target) return target[prop];
+        const currentOptions = () => self.getPluginConfig(pluginName, { defaultOptions }).options;
+        return new Proxy({}, {
+            get(_target, prop) {
+                const options = currentOptions();
+                if (Object.prototype.hasOwnProperty.call(options, prop)) return options[prop];
                 return defaultOptions[prop];
             },
-            set(target, prop, value) {
-                target[prop] = value;
-                self.save(`plugins.${pluginName}.${String(prop)}`);
+            set(_target, prop, value) {
+                self.setPluginOption(pluginName, prop, value);
                 return true;
+            },
+            has(_target, prop) {
+                return prop in currentOptions();
+            },
+            ownKeys() {
+                return Reflect.ownKeys(currentOptions());
+            },
+            getOwnPropertyDescriptor(_target, prop) {
+                return Object.getOwnPropertyDescriptor(currentOptions(), prop);
             }
         });
     }
@@ -177,8 +203,13 @@ class SettingsStoreService {
     setPluginOption(pluginName, optionKey, value) {
         const cfg = this.getPluginConfig(pluginName);
         if (!cfg.options) cfg.options = {};
-        cfg.options[optionKey] = value;
-        this.save(`plugins.${pluginName}.${optionKey}`);
+        Object.defineProperty(cfg.options, optionKey, {
+            value,
+            enumerable: true,
+            configurable: true,
+            writable: true
+        });
+        this.save(`plugins.${pluginName}.${String(optionKey)}`);
     }
 
     addGlobalChangeListener(cb) {
@@ -218,21 +249,13 @@ class SettingsStoreService {
     }
 
     importJSON(jsonStr) {
-        const parsed = JSON.parse(jsonStr);
-        this.plain = {
-            ...DEFAULT_SETTINGS,
-            ...parsed,
-            version: "0.0.9",
-            plugins: { ...(parsed.plugins || {}) }
-        };
+        this._replaceSettings(this._normalize(JSON.parse(jsonStr)));
         this.save();
     }
 
     wipeAll() {
-        const storage = this._getNativeStorage();
-        storage.removeItem(STORAGE_KEY);
-        this.plain = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-        this._notify("*");
+        this._replaceSettings(this._normalize({}));
+        this.save("*");
     }
 }
 
