@@ -134,12 +134,27 @@ class SettingsStoreService {
 
     save(changedPath = "") {
         try {
-            const storage = this._getNativeStorage();
-            storage.setItem(STORAGE_KEY, JSON.stringify(this.plain));
+            const storage = this.nativeCache ?? this._getNativeStorage();
+            const write = storage.setItem(STORAGE_KEY, JSON.stringify(this.plain));
+            write?.catch?.((err) => console.error("[VencordForAndroid:SettingsStore] Save failed:", err));
         } catch (err) {
             console.error("[VencordForAndroid:SettingsStore] Save failed:", err);
         }
         this._notify(changedPath);
+    }
+
+    async connectNativeCache(cache) {
+        if (typeof cache?.getItem !== "function" || typeof cache.setItem !== "function") return;
+        try {
+            const saved = await cache.getItem(STORAGE_KEY);
+            this.nativeCache = cache;
+            if (saved) {
+                this._replaceSettings(this._normalize(JSON.parse(saved)));
+                this._notify("*");
+            }
+        } catch (err) {
+            console.error("[VencordForAndroid:SettingsStore] Read failed:", err);
+        }
     }
 
     get(key) {

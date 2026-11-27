@@ -1,6 +1,6 @@
 {
   "name": "VencordForAndroid",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "minRequiredVersion": "0.0.2",
   "minInstallerVersion": "0.0.2",
   "corruptedVersions": [
@@ -10,10 +10,10 @@
   "repository": "juli22292/vencordforandroid",
   "installerRepository": "juli22292/vencordandroidapp",
   "bundleFile": "vencordforandroid.js",
-  "bundleUrl": "https://github.com/juli22292/vencordforandroid/releases/download/0.1.0/vencordforandroid.js",
+  "bundleUrl": "https://github.com/juli22292/vencordforandroid/releases/download/0.1.1/vencordforandroid.js",
   "rawBundleUrl": "https://raw.githubusercontent.com/juli22292/vencordforandroid/main/dist/vencordforandroid.js",
-  "sha256": "64194c857e50e2f075068606df798ca3b1a15628b84eff229ffcddcfb3e5194a",
+  "sha256": "2f78d829594cd2dd277b9b8a140cd66ee97b0939167f9963b6bb7449e3105927",
   "pluginCount": 170,
-  "builtAt": "2026-11-27T14:03:58.076Z",
-  "changelog": "v0.1.0: Korrekturen für Einstellungen, Plugin-Lebenszyklus und die Update-Anzeige."
+  "builtAt": "2026-11-27T15:02:23.962Z",
+  "changelog": "v0.1.1: Vencord als Abschnitt in den nativen Discord-Einstellungen und überarbeitete Metro-Modulerkennung."
 }

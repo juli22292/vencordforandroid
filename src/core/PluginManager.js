@@ -271,10 +271,25 @@ class PluginManagerService {
     }
 
     togglePlugin(name) {
-        if (this.isPluginEnabled(name)) {
-            return this.stopPlugin(name);
+        return this.setPluginEnabled(name, !this.isPluginEnabled(name));
+    }
+
+    setPluginEnabled(name, enabled) {
+        const plugin = this.getPlugin(name);
+        if (!plugin || !this._isAvailable(plugin) || plugin.required || Settings.get("safeMode")) return false;
+        return enabled ? this.startPlugin(plugin) : this.stopPlugin(plugin);
+    }
+
+    setSafeMode(enabled) {
+        Settings.set("safeMode", enabled);
+        if (enabled) {
+            for (const name of this.running) {
+                const plugin = this.getPlugin(name);
+                if (plugin && !plugin.required) this._disposePlugin(plugin);
+            }
+        } else {
+            this.startAllEnabled();
         }
-        return this.startPlugin(name);
     }
 
     stopAll() {

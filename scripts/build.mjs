@@ -8,6 +8,8 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { transformSync } from "@babel/core";
+import transformClasses from "@babel/plugin-transform-classes";
 import { BUILTIN_PLUGINS } from "../src/plugins/builtinPlugins.js";
 import { CORE_VERSION } from "../src/core/Version.js";
 
@@ -56,13 +58,25 @@ const banner = `/**
  */
 (function (global) {
 "use strict";
+try {
 `;
 
 const footer = `
+} catch (error) {
+    const message = "[VencordForAndroid] Bundle startup failed: " + (error?.stack || error);
+    if (typeof global.nativeLoggingHook === "function") global.nativeLoggingHook(message, 3);
+    else global.console?.error?.(message);
+}
 })(typeof globalThis !== "undefined" ? globalThis : typeof window !== "undefined" ? window : this);
 `;
 
-const bundleContent = `${banner}\n${chunks.join("\n\n")}\n${footer}`;
+const transformed = transformSync(`${banner}\n${chunks.join("\n\n")}\n${footer}`, {
+    babelrc: false,
+    configFile: false,
+    sourceType: "script",
+    plugins: [transformClasses]
+}).code;
+const bundleContent = `(function () {\n${transformed}\n})();\n`;
 
 fs.mkdirSync(distDir, { recursive: true });
 fs.writeFileSync(path.join(distDir, "vencordforandroid.js"), bundleContent, "utf8");
@@ -84,7 +98,7 @@ const manifest = {
     sha256,
     pluginCount: BUILTIN_PLUGINS.length,
     builtAt,
-    changelog: `v${version}: Korrekturen für Einstellungen, Plugin-Lebenszyklus und die Update-Anzeige.`
+    changelog: `v${version}: Vencord als Abschnitt in den nativen Discord-Einstellungen und überarbeitete Metro-Modulerkennung.`
 };
 
 fs.writeFileSync(path.join(distDir, "manifest.json"), JSON.stringify(manifest, null, 2), "utf8");

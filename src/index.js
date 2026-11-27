@@ -1,26 +1,9 @@
-/**
- * VencordForAndroid v0.0.8 - Real Discord Android Metro/Hermes Entry Point
- * Modeled after revenge-bundle/src/entry.ts:
- * 1. Disables Object.freeze/Object.seal immediately BEFORE index.android.bundle runs.
- * 2. Intercepts globalThis.__r so VencordForAndroid.init() patches SETTING_RENDERER_CONFIG
- *    and createList BEFORE originalRequire(0) boots Discord's UI!
- */
-
 import { Settings, SettingsStore, PlainSettings, definePluginSettings, OptionType } from "./core/Settings.js";
 import { Patcher, Webpack, Metro } from "./core/Patcher.js";
 import { PluginManager, definePlugin } from "./core/PluginManager.js";
 import { Updater, CORE_VERSION, CORE_REPO, CORRUPTED_VERSIONS } from "./core/Updater.js";
 import { BUILTIN_PLUGINS } from "./plugins/builtinPlugins.js";
 import { SettingsInjector } from "./ui/DiscordSettingsInjector.js";
-
-if (typeof globalThis !== "undefined") {
-    globalThis.window = globalThis;
-    // Prevent Discord's Metro modules from being frozen before we can patch SETTING_RENDERER_CONFIG / createList
-    try {
-        Object.freeze = (o) => o;
-        Object.seal = (o) => o;
-    } catch (_) {}
-}
 
 class VencordForAndroidRuntime {
     constructor() {
@@ -44,31 +27,25 @@ class VencordForAndroidRuntime {
 
     init() {
         if (this.initialized) return;
-        try {
-            // Attach live Metro __r interceptor BEFORE registering settings/plugins
-            Patcher.attachToMetroRequire();
+        PluginManager.registerAll(BUILTIN_PLUGINS);
+        SettingsInjector.init();
+        this.initialized = true;
+    }
 
-            Settings.set("version", this.version);
-            console.log(`[VencordForAndroid] Initializing v${this.version} natively inside com.discord Metro/Hermes runtime...`);
-
-            // 1. Register the built-in plugin catalog.
-            PluginManager.registerAll(BUILTIN_PLUGINS);
-
-            // 2. Patch Discord Android native Settings (SETTING_RENDERER_CONFIG, createList & SettingsOverviewScreen)
-            SettingsInjector.init();
-
-            // 3. Start all enabled plugins
-            PluginManager.startAllEnabled();
-
-            this.initialized = true;
-            console.log(`[VencordForAndroid] Started ${PluginManager.running.size} plugins.`);
-
-            // 4. Background update check against juli22292/vencordforandroid
-            if (Settings.get("autoUpdate") && typeof fetch === "function") {
-                Updater.checkForUpdates().catch(() => {});
-            }
-        } catch (err) {
-            console.error("[VencordForAndroid] Init error:", err);
+    async startPlugins() {
+        if (!this.initialized || this.started) return;
+        this.started = true;
+        const native = Patcher.Common.ReactNative;
+        const nativeModules = native?.NativeModules;
+        const cache = nativeModules?.NativeCacheModule ?? nativeModules?.MMKVManager
+            ?? native?.TurboModuleRegistry?.get?.("NativeCacheModule")
+            ?? native?.TurboModuleRegistry?.get?.("MMKVManager");
+        await Settings.connectNativeCache(cache);
+        if (!this.initialized) return;
+        PluginManager.startAllEnabled();
+        globalThis.console?.log?.(`[VencordForAndroid] v${this.version} started ${PluginManager.running.size} plugins.`);
+        if (Settings.get("autoUpdate") && typeof fetch === "function") {
+            await Updater.checkForUpdates();
         }
     }
 
@@ -76,89 +53,27 @@ class VencordForAndroidRuntime {
         SettingsInjector.unpatchAll();
         PluginManager.uninstallAll();
         this.initialized = false;
+        this.started = false;
     }
 }
 
 export const VencordForAndroid = new VencordForAndroidRuntime();
 
-if (typeof globalThis !== "undefined") {
-    globalThis.VencordForAndroid = VencordForAndroid;
-    globalThis.Vencord = VencordForAndroid;
+const startVencordPlugins = () => {
+    Promise.resolve().then(() => VencordForAndroid.startPlugins()).catch((err) => {
+        globalThis.console?.error?.("[VencordForAndroid] Startup failed:", err);
+    });
+};
+
+globalThis.VencordForAndroid = VencordForAndroid;
+globalThis.Vencord = VencordForAndroid;
+try {
+    VencordForAndroid.init();
+    const metroStarted = typeof globalThis.__r === "function";
+    Patcher.observeMetroDefinitions(startVencordPlugins);
+    if (metroStarted) startVencordPlugins();
+} catch (err) {
+    globalThis.console?.error?.("[VencordForAndroid] Setup failed:", err);
 }
-
-function bootstrapIntoDiscordMetro() {
-    if (typeof globalThis === "undefined") {
-        VencordForAndroid.init();
-        return;
-    }
-
-    if (typeof globalThis.__r === "undefined") {
-        let _requireFunc;
-        let _defineFunc;
-        let booted = false;
-
-        try {
-            Object.defineProperties(globalThis, {
-                __r: {
-                    configurable: true,
-                    get() {
-                        return _requireFunc;
-                    },
-                    set(origRequire) {
-                        _requireFunc = function patchedMetroRequire(moduleId) {
-                            if (moduleId === 0 && !booted) {
-                                booted = true;
-                                try {
-                                    if (!globalThis.modules && typeof globalThis.__c === "function") {
-                                        globalThis.modules = globalThis.__c();
-                                    }
-                                    if (globalThis.modules instanceof Map) {
-                                        globalThis.modules = Object.fromEntries(globalThis.modules);
-                                    }
-                                } catch (_) {}
-
-                                _requireFunc = origRequire;
-
-                                try {
-                                    VencordForAndroid.init();
-                                } catch (e) {
-                                    console.error("[VencordForAndroid] Pre-boot error:", e);
-                                }
-
-                                return origRequire(moduleId);
-                            }
-                            return origRequire(moduleId);
-                        };
-                    }
-                },
-                __d: {
-                    configurable: true,
-                    get() {
-                        if (globalThis.Object && !globalThis.modules && typeof globalThis.__c === "function") {
-                            try {
-                                globalThis.modules = globalThis.__c();
-                            } catch (_) {}
-                        }
-                        return _defineFunc;
-                    },
-                    set(v) {
-                        _defineFunc = v;
-                    }
-                }
-            });
-        } catch (_) {
-            VencordForAndroid.init();
-        }
-    } else {
-        if (!globalThis.modules && typeof globalThis.__c === "function") {
-            try {
-                globalThis.modules = globalThis.__c();
-            } catch (_) {}
-        }
-        VencordForAndroid.init();
-    }
-}
-
-bootstrapIntoDiscordMetro();
 
 export default VencordForAndroid;

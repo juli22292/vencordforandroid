@@ -9,8 +9,9 @@ class PatcherAndModuleEngine {
         this.patchWrappers = new WeakMap();
         this.declarativePatches = [];
         this.waitSubscriptions = new Set();
+        this.metroModules = new Map();
+        this.metroExportOwners = new WeakMap();
         this._commonCache = {};
-        this._hookModuleLoaders();
     }
 
     // --- 1. Runtime Method Patching (before / instead / after) ---
@@ -115,89 +116,90 @@ class PatcherAndModuleEngine {
     }
 
     // --- 3. Discord Metro (React Native Android) & Webpack Module Discovery ---
-    attachToMetroRequire() {
-        this._hookModuleLoaders();
-    }
-
-    _hookModuleLoaders() {
-        if (typeof globalThis === "undefined") return;
-
-        // Hook Discord Android React Native Metro require (__r) if present and not yet hooked
-        if (typeof globalThis.__r === "function" && !globalThis.__r.__vencordHooked) {
-            const origRequire = globalThis.__r;
-            const self = this;
-            const hookedRequire = function (moduleId) {
-                const exports = origRequire.apply(this, arguments);
-                if (exports) {
-                    self._notifyWaiters(exports);
-                }
-                return exports;
+    observeMetroDefinitions(onEntryLoaded) {
+        const engine = this;
+        const original = Object.getOwnPropertyDescriptor(globalThis, "__d");
+        let wrapped;
+        const assign = (next) => {
+            wrapped = typeof next !== "function" ? next : function (factory, id, ...args) {
+                if (typeof factory !== "function") return next.call(this, factory, id, ...args);
+                const observeFactory = function (...factoryArgs) {
+                    const result = factory.apply(this, factoryArgs);
+                    try {
+                        const record = factoryArgs[4];
+                        const exports = record?.exports;
+                        if (exports && (typeof exports === "object" || typeof exports === "function")) {
+                            engine.metroModules.set(id, record);
+                            engine.metroExportOwners.set(exports, record);
+                            engine._notifyWaiters(record);
+                        }
+                        if (id === 0) onEntryLoaded();
+                    } catch (error) {
+                        globalThis.console?.error?.("[VencordForAndroid] Metro observer:", error);
+                    }
+                    return result;
+                };
+                return next.call(this, observeFactory, id, ...args);
             };
-            hookedRequire.__vencordHooked = true;
-            try {
-                Object.assign(hookedRequire, origRequire);
-            } catch (_) {}
-            try {
-                Object.defineProperty(globalThis, "__r", {
-                    configurable: true,
-                    writable: true,
-                    value: hookedRequire
-                });
-            } catch (_) {
-                globalThis.__r = hookedRequire;
-            }
-        }
+        };
+        assign(globalThis.__d);
+        Object.defineProperty(globalThis, "__d", {
+            configurable: true,
+            enumerable: original?.enumerable ?? true,
+            get: () => wrapped,
+            set: assign
+        });
     }
 
-    _notifyWaiters(exports) {
+    patchableMetroExport(exports, key) {
+        const descriptor = Object.getOwnPropertyDescriptor(exports, key);
+        if (!descriptor || descriptor.configurable || descriptor.writable) return exports;
+        const record = this.metroExportOwners.get(exports);
+        if (!record || record.exports !== exports) return exports;
+
+        const descriptors = Object.getOwnPropertyDescriptors(exports);
+        descriptors[key].configurable = true;
+        const replacement = Object.create(Object.getPrototypeOf(exports), descriptors);
+        record.exports = replacement;
+        this.metroExportOwners.set(replacement, record);
+        return replacement;
+    }
+
+    _notifyWaiters(record) {
         if (this.waitSubscriptions.size === 0) return;
         for (const sub of Array.from(this.waitSubscriptions)) {
+            const exports = record.exports;
             try {
-                if (sub.filter(exports)) {
-                    this.waitSubscriptions.delete(sub);
-                    sub.callback(exports);
-                } else if (exports?.default && sub.filter(exports.default)) {
-                    this.waitSubscriptions.delete(sub);
-                    sub.callback(exports.default);
-                }
-            } catch (_) {}
+                const match = sub.filter(exports) ? exports : exports?.default && sub.filter(exports.default) ? exports.default : null;
+                if (!match) continue;
+                this.waitSubscriptions.delete(sub);
+                sub.callback(match);
+            } catch (error) {
+                globalThis.console?.error?.("[VencordForAndroid] Module callback:", error);
+            }
         }
     }
 
     _getMetroModulesMap() {
         if (typeof globalThis === "undefined") return null;
-        let raw = globalThis.modules;
-        if (!raw && typeof globalThis.__c === "function") {
-            try {
-                raw = globalThis.__c();
-                if (raw) globalThis.modules = raw;
-            } catch (_) {}
-        }
+        const raw = globalThis.modules ?? globalThis.__r?.getModules?.();
         if (!raw) return null;
-        if (raw instanceof Map) {
-            try {
-                const obj = Object.fromEntries(raw);
-                globalThis.modules = obj;
-                return obj;
-            } catch (_) {
-                return null;
-            }
-        }
-        return raw;
+        return raw instanceof Map ? Object.fromEntries(raw) : raw;
     }
 
     _getModuleList() {
-        const list = [];
+        const list = new Set();
+        for (const { exports } of this.metroModules.values()) list.add(exports);
         try {
-            // 1. React Native Metro modules map via globalThis.modules / globalThis.__c()
+            // Explicit module registries provided by supported hosts and test runtimes.
             const modulesMap = this._getMetroModulesMap();
             if (modulesMap) {
                 for (const key of Object.keys(modulesMap)) {
                     const mod = modulesMap[key];
                     if (mod?.isInitialized && mod?.publicModule?.exports) {
-                        list.push(mod.publicModule.exports);
+                        list.add(mod.publicModule.exports);
                     } else if (mod?.exports) {
-                        list.push(mod.exports);
+                        list.add(mod.exports);
                     }
                 }
             }
@@ -217,7 +219,7 @@ class PatcherAndModuleEngine {
                 }
                 if (wpRequire?.c) {
                     for (const mod of Object.values(wpRequire.c)) {
-                        if (mod?.exports) list.push(mod.exports);
+                        if (mod?.exports) list.add(mod.exports);
                     }
                 }
             }
@@ -313,8 +315,6 @@ class PatcherAndModuleEngine {
     }
 
     waitFor(filterOrProps, callback) {
-        this._hookModuleLoaders();
-
         const filter = Array.isArray(filterOrProps)
             ? (m) => m && (typeof m === "object" || typeof m === "function") && filterOrProps.every((p) => p in m)
             : typeof filterOrProps === "string"
@@ -324,26 +324,12 @@ class PatcherAndModuleEngine {
         const existing = this.find(filter);
         if (existing) {
             callback(existing);
-            return;
+            return () => {};
         }
         const sub = { filter, callback };
         this.waitSubscriptions.add(sub);
 
-        // Keep polling gently once React Native polyfills setInterval
-        if (typeof setInterval === "function") {
-            const timer = setInterval(() => {
-                if (!this.waitSubscriptions.has(sub)) {
-                    clearInterval(timer);
-                    return;
-                }
-                const found = this.find(filter);
-                if (found) {
-                    this.waitSubscriptions.delete(sub);
-                    clearInterval(timer);
-                    callback(found);
-                }
-            }, 750);
-        }
+        return () => this.waitSubscriptions.delete(sub);
     }
 
     get Common() {

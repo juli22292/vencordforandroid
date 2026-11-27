@@ -1,556 +1,237 @@
-/**
- * VencordForAndroid v0.0.8 - Native Discord Android React Native Settings Integration
- *
- * Exact architecture matching revenge-bundle (tabs.tsx & shared.tsx):
- * 1. Patches SETTING_RENDERER_CONFIG with VencordCustomPage + all Vencord Settings rows
- * 2. Patches createListModule.createList (before & after) right below the ACCOUNT section
- * 3. Fallback patch on SettingsOverviewScreen via findInReactTree(ret, n => n?.props?.sections)
- * 4. Uses tabsNavigationRef.getRootNavigationRef().navigate("VencordCustomPage", ...)
- * 5. Renders native React Native screens using Discord's own React & ReactNative primitives.
- */
-
-import { Settings } from "../core/Settings.js";
+import { Settings, OptionType } from "../core/Settings.js";
 import { PluginManager } from "../core/PluginManager.js";
 import { Updater, CORE_VERSION, CORE_REPO, INSTALLER_REPO } from "../core/Updater.js";
 import { Patcher } from "../core/Patcher.js";
 
-function findInReactTree(tree, filter) {
-    if (!tree || typeof tree !== "object") return null;
-    try {
-        if (filter(tree)) return tree;
-    } catch (_) {}
+const VENCORD_SETTINGS = "VENCORD_ANDROID_SETTINGS";
+const VENCORD_PLUGINS = "VENCORD_ANDROID_PLUGINS";
+const VENCORD_UPDATER = "VENCORD_ANDROID_UPDATER";
+const VENCORD_BACKUP = "VENCORD_ANDROID_BACKUP";
+const VENCORD_MAIN_ROWS = [VENCORD_SETTINGS, VENCORD_PLUGINS, VENCORD_UPDATER, VENCORD_BACKUP];
 
-    if (Array.isArray(tree)) {
-        for (let i = 0; i < tree.length; i++) {
-            const res = findInReactTree(tree[i], filter);
-            if (res) return res;
-        }
-        return null;
-    }
+function useSettingsValue(read) {
+    const React = Patcher.Common.React;
+    const [, refresh] = React.useReducer((revision) => revision + 1, 0);
+    React.useEffect(() => Settings.subscribe(refresh), [refresh]);
+    return read();
+}
 
-    if (tree.props && tree.props.children) {
-        const res = findInReactTree(tree.props.children, filter);
-        if (res) return res;
+function injectVencordSection(sections) {
+    if (!Array.isArray(sections)) return sections;
+    const accountIndex = sections.findIndex((section) => section?.settings?.includes?.("ACCOUNT"));
+    if (accountIndex < 0 || sections.some((section) => section?.settings?.includes?.(VENCORD_SETTINGS))) {
+        return sections;
     }
-    return null;
+    return [
+        ...sections.slice(0, accountIndex + 1),
+        { label: "Vencord", title: "Vencord", settings: VENCORD_MAIN_ROWS },
+        ...sections.slice(accountIndex + 1)
+    ];
+}
+
+function withVencordSections(props) {
+    if (!props || typeof props !== "object") return props;
+    if (Array.isArray(props.node?.sections)) {
+        const sections = injectVencordSection(props.node.sections);
+        return sections === props.node.sections ? props : { ...props, node: { ...props.node, sections } };
+    }
+    const sections = injectVencordSection(props.sections);
+    return sections === props.sections ? props : { ...props, sections };
 }
 
 export class DiscordSettingsInjector {
     constructor() {
         this.unpatches = [];
-        this._hooked = false;
+        this.active = false;
+        this.configRegistered = false;
+        this.checkedUpdate = null;
     }
 
     init() {
-        if (this._hooked) return;
-        this._hooked = true;
-        this._initReactNativeSettingsTabs();
+        if (this.active) return;
+        this.active = true;
+        this.unpatches.push(Patcher.waitFor(
+            (module) => module?.SETTING_RENDERER_CONFIG && typeof module.SETTING_RENDERER_CONFIG === "object",
+            (module) => this.registerConfig(module)
+        ));
+        this.unpatches.push(Patcher.waitFor(
+            (module) => typeof module?.SettingsList === "function",
+            (module) => this.patchSections(module, "SettingsList")
+        ));
+        this.unpatches.push(Patcher.waitFor(
+            (module) => typeof module?.createList === "function",
+            (module) => this.patchSections(module, "createList")
+        ));
     }
 
-    _initReactNativeSettingsTabs() {
-        Patcher.waitFor(["SETTING_RENDERER_CONFIG"], (settingConstants) => {
-            try {
-                const React = Patcher.Common.React;
-                const TableRowMod = Patcher.findByProps("TableRow");
-                const TableRow = TableRowMod?.TableRow;
-
-                const rows = [
-                    {
-                        key: "VENCORD_MAIN",
-                        title: () => "Vencord",
-                        icon: Patcher.findAssetId("SettingsIcon") || Patcher.findAssetId("CogIcon"),
-                        useTrailing: () => `(v${CORE_VERSION})`,
-                        tabId: "vencord"
-                    },
-                    {
-                        key: "VENCORD_PLUGINS",
-                        title: () => "Plugins",
-                        icon: Patcher.findAssetId("PuzzlePieceIcon"),
-                        useTrailing: () => `${PluginManager.getAllPlugins().filter((p) => p.enabled).length}`,
-                        tabId: "plugins"
-                    },
-                    {
-                        key: "VENCORD_THEMES",
-                        title: () => "Themes",
-                        icon: Patcher.findAssetId("PaintPaletteIcon"),
-                        tabId: "themes"
-                    },
-                    {
-                        key: "VENCORD_UPDATER",
-                        title: () => "Updater",
-                        icon: Patcher.findAssetId("DownloadIcon") || Patcher.findAssetId("CloudUploadIcon"),
-                        tabId: "updater"
-                    },
-                    {
-                        key: "VENCORD_BACKUP",
-                        title: () => "Backup & Restore",
-                        icon: Patcher.findAssetId("RetryIcon") || Patcher.findAssetId("RefreshIcon"),
-                        tabId: "backup"
-                    }
-                ];
-
-                const CustomPageRenderer = this._createCustomPageRenderer();
-
-                const getRendererRows = () => {
-                    const map = {};
-                    for (const row of rows) {
-                        const PageComponent = this._createReactNativeTabComponent(row.tabId);
-                        map[row.key] = {
-                            type: "pressable",
-                            useTitle: row.title,
-                            title: row.title,
-                            icon: row.icon,
-                            IconComponent: (TableRow && row.icon && React)
-                                ? () => React.createElement(TableRow.Icon, { source: row.icon })
-                                : undefined,
-                            useTrailing: row.useTrailing,
-                            onPress: () => this._navigateToVencordPage(row.title(), PageComponent),
-                            withArrow: true
-                        };
-                    }
-                    return map;
-                };
-
-                const origRendererConfig = settingConstants.SETTING_RENDERER_CONFIG;
-                let rendererConfigValue = settingConstants.SETTING_RENDERER_CONFIG;
-
-                Object.defineProperty(settingConstants, "SETTING_RENDERER_CONFIG", {
-                    enumerable: true,
-                    configurable: true,
-                    get: () => ({
-                        ...rendererConfigValue,
-                        VencordCustomPage: {
-                            type: "route",
-                            useTitle: () => "Vencord Settings",
-                            title: () => "Vencord Settings",
-                            screen: {
-                                route: "VencordCustomPage",
-                                getComponent: () => CustomPageRenderer
-                            }
-                        },
-                        ...getRendererRows()
-                    }),
-                    set: (v) => {
-                        rendererConfigValue = v;
-                    }
-                });
-
-                this.unpatches.push(() => {
-                    Object.defineProperty(settingConstants, "SETTING_RENDERER_CONFIG", {
-                        value: origRendererConfig,
-                        writable: true
-                    });
-                });
-
-                const injectSectionIntoList = (sections) => {
-                    if (!Array.isArray(sections)) return;
-                    if (sections.some((s) => s && (s.label === "Vencord Settings" || s.title === "Vencord Settings"))) {
-                        return;
-                    }
-                    const accountIdx = sections.findIndex((s) => Array.isArray(s?.settings) && s.settings.includes("ACCOUNT"));
-                    const insertIdx = accountIdx !== -1 ? accountIdx + 1 : 1;
-                    sections.splice(insertIdx, 0, {
-                        label: "Vencord Settings",
-                        title: "Vencord Settings",
-                        settings: rows.map((r) => r.key)
-                    });
-                };
-
-                // Patch 1: createListModule.createList (both before and after for full compatibility)
-                Patcher.waitFor(["createList"], (createListModule) => {
-                    if (createListModule && typeof createListModule.createList === "function") {
-                        this.unpatches.push(
-                            Patcher.before("VencordSettingsCreateListBefore", createListModule, "createList", (args) => {
-                                const config = args[0];
-                                if (config && Array.isArray(config.sections)) {
-                                    injectSectionIntoList(config.sections);
-                                }
-                                return args;
-                            })
-                        );
-                        this.unpatches.push(
-                            Patcher.after("VencordSettingsCreateListAfter", createListModule, "createList", (args, ret) => {
-                                const config = args[0];
-                                if (config && Array.isArray(config.sections)) {
-                                    injectSectionIntoList(config.sections);
-                                }
-                                return ret;
-                            })
-                        );
-                    }
-                });
-
-                // Patch 2: 2026 Discord Android SettingListRenderer.SettingsList
-                Patcher.waitFor(["SettingsList"], (SettingListRenderer) => {
-                    if (SettingListRenderer && typeof SettingListRenderer.SettingsList === "function") {
-                        this.unpatches.push(
-                            Patcher.before("VencordSettingsListRenderer", SettingListRenderer, "SettingsList", (args) => {
-                                const props = args[0];
-                                if (props && Array.isArray(props.sections)) {
-                                    injectSectionIntoList(props.sections);
-                                }
-                                return args;
-                            })
-                        );
-                    }
-                });
-
-                // Patch 3: Fallback patch directly on SettingsOverviewScreen
-                Patcher.waitFor("SettingsOverviewScreen", (SettingsOverviewMod) => {
-                    const targetObj = SettingsOverviewMod?.default ? SettingsOverviewMod : null;
-                    if (targetObj && typeof targetObj.default === "function") {
-                        this.unpatches.push(
-                            Patcher.after("VencordSettingsOverview", targetObj, "default", (_args, ret) => {
-                                try {
-                                    const node = findInReactTree(ret, (n) => Array.isArray(n?.props?.sections));
-                                    if (node && Array.isArray(node.props.sections)) {
-                                        injectSectionIntoList(node.props.sections);
-                                    }
-                                } catch (_) {}
-                                return ret;
-                            })
-                        );
-                    }
-                });
-
-                console.log("[VencordForAndroid] Successfully registered Vencord Settings in Discord SETTING_RENDERER_CONFIG!");
-            } catch (err) {
-                console.error("[VencordForAndroid] React Native settings registration error:", err);
+    patchSections(module, key) {
+        const target = Patcher.patchableMetroExport(module, key);
+        const descriptor = Object.getOwnPropertyDescriptor(target, key);
+        if (!descriptor?.configurable && !descriptor?.writable) return;
+        const original = target[key];
+        const injector = this;
+        Object.defineProperty(target, key, {
+            configurable: descriptor.configurable,
+            enumerable: descriptor.enumerable,
+            writable: true,
+            value: function (props, ...rest) {
+                return original.call(this, injector.configRegistered ? withVencordSections(props) : props, ...rest);
             }
         });
+        this.unpatches.push(() => Object.defineProperty(target, key, descriptor));
     }
 
-    _navigateToVencordPage(title, PageComponent) {
-        try {
-            const tabsNav = Patcher.findByProps("getRootNavigationRef") || Patcher.findDeepInMetro((m) => m && typeof m.getRootNavigationRef === "function");
-            const nav = tabsNav?.getRootNavigationRef?.();
-            if (nav && typeof nav.navigate === "function") {
-                nav.navigate("VencordCustomPage", {
-                    title,
-                    render: PageComponent
-                });
-                return;
-            }
-        } catch (err) {
-            console.error("[VencordForAndroid] Navigation error:", err);
-        }
-    }
-
-    _createCustomPageRenderer() {
-        const React = Patcher.Common.React;
-        const NavigationNative = Patcher.Common.NavigationNative;
-        const self = this;
-
-        const Renderer = function VencordCustomPageScreen(props) {
-            const nav = NavigationNative?.useNavigation ? NavigationNative.useNavigation() : null;
-            const route = NavigationNative?.useRoute ? NavigationNative.useRoute() : props?.route;
-            const params = route?.params || {};
-            const PageComp = params.render || self._createReactNativeTabComponent("plugins");
-            const pageTitle = params.title || "Vencord Settings";
-
-            if (React.useEffect) {
-                React.useEffect(() => {
-                    if (nav && typeof nav.setOptions === "function") {
-                        try {
-                            nav.setOptions({ title: pageTitle });
-                        } catch (_) {}
-                    }
-                }, [pageTitle]);
-            }
-
-            return React.createElement(PageComp);
-        };
-
-        return React?.memo ? React.memo(Renderer) : Renderer;
-    }
-
-    _createReactNativeTabComponent(tabId) {
-        return function VencordRNSettingsScreen() {
-            const React = Patcher.Common.React;
-            const RN = Patcher.Common.ReactNative;
-            if (!React || !RN) return null;
-
-            const { View, Text, ScrollView, TextInput, TouchableOpacity, Switch } = RN;
-            const [search, setSearch] = React.useState("");
-            const [statusFilter, setStatusFilter] = React.useState("ALL");
-            const [selectedPlugin, setSelectedPlugin] = React.useState(null);
-            const [, setTick] = React.useState(0);
-            const refresh = () => setTick((n) => n + 1);
-
-            if (tabId === "updater") {
-                const updateStatus = Updater.errorMessage
-                    || (Updater.hasPendingRestart ? "Starte Discord neu, um das Update zu laden." : null)
-                    || (Updater.updateAvailable ? `Neues Update v${Updater.latestVersion} verfügbar.` : null)
-                    || (Updater.status === "up-to-date" ? "VencordForAndroid ist auf dem neuesten Stand." : "Update-Status ausstehend.");
-                const releasesUrl = "https://github.com/" + (Updater.updateAvailable ? INSTALLER_REPO : CORE_REPO) + "/releases/latest";
-                return React.createElement(
-                    ScrollView,
-                    { style: { flex: 1, backgroundColor: "#1e1f22", padding: 16 } },
-                    React.createElement(
-                        View,
-                        { style: { backgroundColor: "#2b2d31", borderRadius: 10, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: "#3f4147" } },
-                        React.createElement(Text, { style: { color: "#f2f3f5", fontSize: 16, fontWeight: "700", marginBottom: 6 } }, "VencordForAndroid Repository"),
-                        React.createElement(Text, { style: { color: "#00a8fc", fontSize: 13 } }, `https://github.com/${CORE_REPO}`),
-                        React.createElement(Text, { style: { color: "#b5bac1", fontSize: 13, marginTop: 4 } },
-                            `Installiert: v${CORE_VERSION}` + (Updater.lastCheck && !Updater.errorMessage ? ` • Neueste: v${Updater.latestVersion}` : ""))
-                    ),
-                    React.createElement(
-                        View,
-                        { style: { backgroundColor: "#2b2d31", borderRadius: 10, padding: 16, borderWidth: 1, borderColor: "#3f4147" } },
-                        React.createElement(Text, { style: { color: "#f2f3f5", fontSize: 16, fontWeight: "700", marginBottom: 6 } }, "Updates"),
-                        React.createElement(
-                            Text,
-                            { style: { color: "#b5bac1", fontSize: 13, marginBottom: 14 } },
-                            updateStatus
-                        ),
-                        React.createElement(
-                            View,
-                            { style: { flexDirection: "row", gap: 10 } },
-                            React.createElement(
-                                TouchableOpacity,
-                                {
-                                    style: { backgroundColor: "#5865f2", paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 },
-                                    onPress: async () => {
-                                        await Updater.checkForUpdates();
-                                        refresh();
-                                    }
-                                },
-                                React.createElement(Text, { style: { color: "#fff", fontWeight: "700" } }, "Nach Updates suchen")
-                            ),
-                            React.createElement(
-                                TouchableOpacity,
-                                {
-                                    style: { backgroundColor: "#248046", paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 },
-                                    onPress: async () => {
-                                        if (Updater.updateAvailable && Updater.canApplyUpdate) {
-                                            await Updater.downloadAndApplyUpdate();
-                                            refresh();
-                                        } else {
-                                            try {
-                                                await RN.Linking.openURL(releasesUrl);
-                                            } catch (err) {
-                                                Updater.errorMessage = "GitHub konnte nicht im Browser geöffnet werden.";
-                                                refresh();
-                                            }
-                                        }
-                                    }
-                                },
-                                React.createElement(Text, { style: { color: "#fff", fontWeight: "700" } },
-                                    Updater.updateAvailable && Updater.canApplyUpdate ? "Update installieren" : "GitHub-Releases")
-                            )
-                        )
-                    )
-                );
-            }
-
-            if (tabId === "vencord") {
-                const toggles = [
-                    { key: "autoUpdate", title: "Automatisch nach Updates suchen", sub: "Prüft beim Start von Discord auf neue VencordForAndroid-Updates" },
-                    { key: "autoUpdateNotification", title: "Update-Benachrichtigungen", sub: "Informiert bei neuen Releases auf juli22292/vencordforandroid" },
-                    { key: "safeMode", title: "Abgesicherter Modus (Safe Mode)", sub: "Deaktiviert optionale Plugins zur Fehlerbehebung" }
-                ];
-                return React.createElement(
-                    ScrollView,
-                    { style: { flex: 1, backgroundColor: "#1e1f22", padding: 16 } },
-                    toggles.map((item) =>
-                        React.createElement(
-                            View,
-                            {
-                                key: item.key,
-                                style: {
-                                    backgroundColor: "#2b2d31",
-                                    borderRadius: 10,
-                                    padding: 14,
-                                    marginBottom: 10,
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    borderWidth: 1,
-                                    borderColor: "#3f4147"
-                                }
-                            },
-                            React.createElement(
-                                View,
-                                { style: { flex: 1, paddingRight: 12 } },
-                                React.createElement(Text, { style: { color: "#f2f3f5", fontSize: 15, fontWeight: "700" } }, item.title),
-                                React.createElement(Text, { style: { color: "#b5bac1", fontSize: 12, marginTop: 2 } }, item.sub)
-                            ),
-                            Switch ? React.createElement(Switch, {
-                                value: Boolean(Settings.get(item.key)),
-                                onValueChange: (val) => {
-                                    Settings.set(item.key, val);
-                                    refresh();
-                                }
-                            }) : null
-                        )
-                    )
-                );
-            }
-
-            if (tabId === "themes") {
-                return React.createElement(
-                    ScrollView,
-                    { style: { flex: 1, backgroundColor: "#1e1f22", padding: 16 } },
-                    React.createElement(
-                        View,
-                        { style: { backgroundColor: "#2b2d31", borderRadius: 10, padding: 16, borderWidth: 1, borderColor: "#3f4147" } },
-                        React.createElement(Text, { style: { color: "#f2f3f5", fontSize: 16, fontWeight: "700", marginBottom: 6 } }, "Vencord Themes"),
-                        React.createElement(Text, { style: { color: "#b5bac1", fontSize: 13 } }, "Eigene Android-Themes und Farbschemata für VencordForAndroid.")
-                    )
-                );
-            }
-
-            if (tabId === "backup") {
-                return React.createElement(
-                    ScrollView,
-                    { style: { flex: 1, backgroundColor: "#1e1f22", padding: 16 } },
-                    React.createElement(
-                        View,
-                        { style: { backgroundColor: "#2b2d31", borderRadius: 10, padding: 16, borderWidth: 1, borderColor: "#3f4147" } },
-                        React.createElement(Text, { style: { color: "#f2f3f5", fontSize: 16, fontWeight: "700", marginBottom: 6 } }, "Backup & Restore"),
-                        React.createElement(Text, { style: { color: "#b5bac1", fontSize: 13, marginBottom: 14 } }, "Setze alle Plugin-Einstellungen auf die Standardwerte zurück."),
-                        React.createElement(
-                            TouchableOpacity,
-                            {
-                                style: { backgroundColor: "#da373c", paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, alignSelf: "flex-start" },
-                                onPress: () => {
-                                    PluginManager.stopAll();
-                                    Settings.wipeAll();
-                                    PluginManager.startAllEnabled();
-                                    refresh();
-                                }
-                            },
-                            React.createElement(Text, { style: { color: "#fff", fontWeight: "700" } }, "Alle Plugins zurücksetzen")
-                        )
-                    )
-                );
-            }
-
-            // Show the built-in plugin catalog.
-            const allPlugins = PluginManager.getAllPlugins().filter((p) => {
-                if (search) {
-                    const q = search.toLowerCase();
-                    if (!p.name.toLowerCase().includes(q) && !p.description.toLowerCase().includes(q)) return false;
-                }
-                if (statusFilter === "ENABLED" && !p.enabled) return false;
-                if (statusFilter === "DISABLED" && p.enabled) return false;
-                return true;
+    registerConfig(module) {
+        const key = "SETTING_RENDERER_CONFIG";
+        const items = this.createItems();
+        const config = module[key];
+        if (Object.isExtensible(config)) {
+            const added = Object.keys(items).filter((id) => !Object.prototype.hasOwnProperty.call(config, id));
+            for (const id of added) config[id] = items[id];
+            this.unpatches.push(() => {
+                for (const id of added) if (config[id] === items[id]) delete config[id];
             });
+        } else {
+            const target = Patcher.patchableMetroExport(module, key);
+            const original = Object.getOwnPropertyDescriptor(target, key);
+            if (!original?.configurable && !original?.writable) return;
+            Object.defineProperty(target, key, {
+                configurable: original.configurable,
+                enumerable: original.enumerable,
+                writable: true,
+                value: { ...config, ...items }
+            });
+            this.unpatches.push(() => Object.defineProperty(target, key, original));
+        }
+        this.configRegistered = true;
+        globalThis.console?.log?.("[VencordForAndroid] Native Vencord settings registered.");
+    }
 
-            return React.createElement(
-                ScrollView,
-                { style: { flex: 1, backgroundColor: "#1e1f22", padding: 14 } },
-                // Plugin Management Card
-                React.createElement(
-                    View,
-                    { style: { backgroundColor: "#2b2d31", borderRadius: 10, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: "#3f4147" } },
-                    React.createElement(Text, { style: { color: "#f2f3f5", fontSize: 15, fontWeight: "700", marginBottom: 4 } }, "Plugin Management"),
-                    React.createElement(Text, { style: { color: "#b5bac1", fontSize: 12 } }, "Tippe auf das Zahnrad- oder Info-Symbol für Einstellungen & Details.")
-                ),
-                // Search Bar
-                TextInput ? React.createElement(TextInput, {
-                    style: { backgroundColor: "#111214", color: "#dbdee1", borderRadius: 8, padding: 11, marginBottom: 10, borderWidth: 1, borderColor: "#3f4147" },
-                    placeholder: "Search for a plugin...",
-                    placeholderTextColor: "#949ba4",
-                    value: search,
-                    onChangeText: setSearch
-                }) : null,
-                // Filter Chips
-                React.createElement(
-                    View,
-                    { style: { flexDirection: "row", gap: 8, marginBottom: 14 } },
-                    ["ALL", "ENABLED", "DISABLED"].map((st) =>
-                        React.createElement(
-                            TouchableOpacity,
-                            {
-                                key: st,
-                                style: {
-                                    backgroundColor: statusFilter === st ? "#5865f2" : "#2b2d31",
-                                    paddingVertical: 8,
-                                    paddingHorizontal: 14,
-                                    borderRadius: 8
-                                },
-                                onPress: () => setStatusFilter(st)
-                            },
-                            React.createElement(
-                                Text,
-                                { style: { color: "#fff", fontSize: 12, fontWeight: "700" } },
-                                st === "ALL" ? `Show All (${PluginManager.getAllPlugins().length})` : st === "ENABLED" ? "Show Enabled" : "Show Disabled"
-                            )
-                        )
-                    )
-                ),
-                // Plugin Cards
-                allPlugins.map((plugin) =>
-                    React.createElement(
-                        View,
-                        {
-                            key: plugin.name,
-                            style: {
-                                backgroundColor: "#2b2d31",
-                                borderRadius: 10,
-                                padding: 14,
-                                marginBottom: 10,
-                                borderWidth: 1,
-                                borderColor: "#3f4147"
-                            }
-                        },
-                        React.createElement(
-                            View,
-                            { style: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 } },
-                            React.createElement(Text, { style: { color: "#f2f3f5", fontSize: 15, fontWeight: "700", flex: 1 } }, plugin.name),
-                            React.createElement(
-                                View,
-                                { style: { flexDirection: "row", alignItems: "center", gap: 12 } },
-                                React.createElement(
-                                    TouchableOpacity,
-                                    { onPress: () => setSelectedPlugin(selectedPlugin === plugin.name ? null : plugin.name) },
-                                    React.createElement(Text, { style: { color: "#b5bac1", fontSize: 18 } }, plugin.hasSettings ? "⚙" : "ⓘ")
-                                ),
-                                Switch ? React.createElement(Switch, {
-                                    value: plugin.enabled,
-                                    disabled: plugin.required || !plugin.available || Settings.get("safeMode"),
-                                    onValueChange: () => {
-                                        PluginManager.togglePlugin(plugin.name);
-                                        refresh();
-                                    }
-                                }) : null
-                            )
-                        ),
-                        React.createElement(Text, { style: { color: "#b5bac1", fontSize: 13 } }, plugin.description),
-                        !plugin.available ? React.createElement(Text, { style: { color: "#f0b232", fontSize: 12, marginTop: 6 } }, "Noch nicht für Android portiert") : null,
-                        selectedPlugin === plugin.name && plugin.hasSettings ? React.createElement(
-                            View,
-                            { style: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#3f4147" } },
-                            Object.entries(plugin.options).map(([optKey, optDef]) =>
-                                React.createElement(
-                                    View,
-                                    { key: optKey, style: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 6 } },
-                                    React.createElement(Text, { style: { color: "#dbdee1", fontSize: 12, flex: 1, paddingRight: 8 } }, optDef.label || optKey),
-                                    optDef.type === "boolean" && Switch ? React.createElement(Switch, {
-                                        value: Boolean(plugin.optionValues[optKey] ?? optDef.default),
-                                        onValueChange: (val) => {
-                                            Settings.setPluginOption(plugin.name, optKey, val);
-                                            refresh();
-                                        }
-                                    }) : React.createElement(Text, { style: { color: "#5865f2", fontSize: 12, fontWeight: "700" } }, String(plugin.optionValues[optKey] ?? optDef.default))
-                                )
-                            )
-                        ) : null
-                    )
-                )
-            );
+    createItems() {
+        const items = {};
+        const add = (id, title, definition) => {
+            items[id] = { useTitle: () => title, title: () => title, ...definition };
         };
+        const toggle = (id, parent, title, read, write, description, disabled) => {
+            add(id, title, {
+                parent,
+                type: "toggle",
+                useDescription: () => description,
+                useValue: () => useSettingsValue(read),
+                useIsDisabled: disabled ? () => useSettingsValue(disabled) : undefined,
+                onValueChange: write
+            });
+        };
+        const screen = (id, title, rows, parent = null) => {
+            const NativeSettingsPage = () => {
+                const React = Patcher.Common.React;
+                const ScrollView = Patcher.Common.ReactNative?.ScrollView;
+                const list = Patcher.findByProps("SettingsList")?.SettingsList;
+                if (!React || !ScrollView || !list) return null;
+                const sections = [{ settings: rows }];
+                return React.createElement(ScrollView, { style: { flex: 1 } },
+                    React.createElement(list, { node: { type: "list", sections }, sections }));
+            };
+            add(id, title, {
+                parent,
+                type: "route",
+                screen: { route: id, getComponent: () => NativeSettingsPage }
+            });
+        };
+
+        screen(VENCORD_SETTINGS, "Vencord", ["VENCORD_ANDROID_VERSION", "VENCORD_ANDROID_AUTO_UPDATE", "VENCORD_ANDROID_SAFE_MODE"]);
+        add("VENCORD_ANDROID_VERSION", "Version", {
+            parent: VENCORD_SETTINGS,
+            type: "static",
+            useTrailing: () => `v${CORE_VERSION}`
+        });
+        toggle("VENCORD_ANDROID_AUTO_UPDATE", VENCORD_SETTINGS, "Automatisch nach Updates suchen",
+            () => Settings.get("autoUpdate"), (value) => Settings.set("autoUpdate", value));
+        toggle("VENCORD_ANDROID_SAFE_MODE", VENCORD_SETTINGS, "Abgesicherter Modus",
+            () => Settings.get("safeMode"), (value) => PluginManager.setSafeMode(value),
+            "Hält optionale Plugins vorübergehend an.");
+
+        const pluginRows = [];
+        for (const plugin of PluginManager.getAllPlugins()) {
+            if (!plugin.available || plugin.required || plugin.isDependency) continue;
+            const id = `VENCORD_ANDROID_PLUGIN_${plugin.name}`;
+            toggle(id, VENCORD_PLUGINS, plugin.name,
+                () => PluginManager.isPluginEnabled(plugin.name),
+                (enabled) => PluginManager.setPluginEnabled(plugin.name, enabled),
+                plugin.description, () => Settings.get("safeMode"));
+            pluginRows.push(id);
+
+            const optionIds = [];
+            const optionsPage = `${id}_OPTIONS`;
+            for (const [name, option] of Object.entries(plugin.options)) {
+                if (option.type !== "boolean" && option.type !== OptionType.BOOLEAN) continue;
+                const optionId = `${optionsPage}_${name}`;
+                toggle(optionId, optionsPage, option.label || name,
+                    () => Settings.getPluginConfig(plugin.name).options[name] ?? option.default,
+                    (value) => Settings.setPluginOption(plugin.name, name, value),
+                    option.description);
+                optionIds.push(optionId);
+            }
+            if (optionIds.length) {
+                screen(optionsPage, `${plugin.name} · Einstellungen`, optionIds, VENCORD_PLUGINS);
+                pluginRows.push(optionsPage);
+            }
+        }
+        screen(VENCORD_PLUGINS, "Plugins", pluginRows);
+
+        screen(VENCORD_UPDATER, "Updater", ["VENCORD_ANDROID_CHECK_UPDATE", "VENCORD_ANDROID_OPEN_RELEASE"]);
+        add("VENCORD_ANDROID_CHECK_UPDATE", "Nach Updates suchen", {
+            parent: VENCORD_UPDATER,
+            type: "pressable",
+            onPress: async () => {
+                this.checkedUpdate = await Updater.checkForUpdates();
+                const { error, updateAvailable, latestVersion } = this.checkedUpdate;
+                const message = error || (updateAvailable ? `Version v${latestVersion} ist verfügbar.` : `v${CORE_VERSION} ist aktuell.`);
+                Patcher.Common.ReactNative?.Alert?.alert("Vencord", message);
+            }
+        });
+        add("VENCORD_ANDROID_OPEN_RELEASE", "GitHub-Releases öffnen", {
+            parent: VENCORD_UPDATER,
+            type: "pressable",
+            withArrow: true,
+            onPress: () => {
+                const repo = this.checkedUpdate?.updateAvailable ? INSTALLER_REPO : CORE_REPO;
+                Patcher.Common.ReactNative?.Linking?.openURL(`https://github.com/${repo}/releases/latest`).catch(() => {
+                    Patcher.Common.ReactNative?.Alert?.alert("Vencord", "GitHub konnte nicht geöffnet werden.");
+                });
+            }
+        });
+
+        screen(VENCORD_BACKUP, "Backup & Reset", ["VENCORD_ANDROID_COPY_SETTINGS", "VENCORD_ANDROID_RESET"]);
+        add("VENCORD_ANDROID_COPY_SETTINGS", "Einstellungen kopieren", {
+            parent: VENCORD_BACKUP,
+            type: "pressable",
+            onPress: () => {
+                const clipboard = Patcher.Common.Clipboard;
+                if (typeof clipboard?.setString === "function") clipboard.setString(Settings.exportJSON());
+                else Patcher.Common.ReactNative?.Alert?.alert("Vencord", "Die Zwischenablage ist nicht verfügbar.");
+            }
+        });
+        add("VENCORD_ANDROID_RESET", "Plugins und Einstellungen zurücksetzen", {
+            parent: VENCORD_BACKUP,
+            type: "pressable",
+            onPress: () => Patcher.Common.ReactNative?.Alert?.alert("Vencord", "Alle Vencord-Einstellungen zurücksetzen?", [
+                { text: "Abbrechen", style: "cancel" },
+                { text: "Zurücksetzen", style: "destructive", onPress: () => {
+                    PluginManager.stopAll();
+                    Settings.wipeAll();
+                    PluginManager.startAllEnabled();
+                } }
+            ])
+        });
+        return items;
     }
 
     unpatchAll() {
-        for (const fn of this.unpatches) {
-            try {
-                fn();
-            } catch (_) {}
-        }
-        this.unpatches = [];
-        this._hooked = false;
+        for (const unpatch of this.unpatches.reverse()) unpatch();
+        this.unpatches.length = 0;
+        this.configRegistered = false;
+        this.active = false;
     }
 }
 
